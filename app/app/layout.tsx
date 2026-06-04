@@ -5,7 +5,7 @@ export default function AppLayout({
 }>) {
   return (
     <div className="h-screen">
-      <main className="h-full flex p-4">{children}</main>
+      <main className="h-svh flex flex-col">{children}</main>
     </div>
   );
 }
