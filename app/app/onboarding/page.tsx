@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { completeOnboarding, sendClerkInvitation } from "./_actions";
+import { completeOnboarding } from "./_actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link2, Users } from "lucide-react";
 
-type Step = "name" | "invite" | "waiting" | "joined";
+type Step = "name" | "invite";
 
 export default function OnboardingPage() {
   const { user } = useUser();
@@ -19,10 +19,9 @@ export default function OnboardingPage() {
   const [pending, setPending] = useState(false);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
 
+  const myHousehold = useQuery(api.households.getMyHousehold);
   const createHousehold = useMutation(api.households.create);
-  const joinHousehold = useMutation(api.households.joinByCode);
 
   async function handleNameSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -31,23 +30,26 @@ export default function OnboardingPage() {
     try {
       const formData = new FormData(e.currentTarget);
       const result = await completeOnboarding(formData);
-      if (result.error) { setError(result.error); return; }
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
 
-      await user?.reload();
-
-      const pendingInvite = localStorage.getItem("pendingInvite");
-      if (pendingInvite) {
-        await joinHousehold({ code: pendingInvite });
-        localStorage.removeItem("pendingInvite");
-        setStep("joined");
+      // Check Convex household state before reloading Clerk — Convex is
+      // independent of the JWT refresh and already reflects any household
+      // joined via invite link prior to onboarding.
+      if (myHousehold) {
+        await user?.reload();
+        window.location.href = "/app";
       } else {
         const code = await createHousehold();
+        await user?.reload();
         setInviteCode(code);
         setStep("invite");
       }
     } catch (err) {
-      setError("Something went wrong. Please try again.");
       console.error(err);
+      setError("Something went wrong. Please try again.");
     } finally {
       setPending(false);
     }
@@ -55,30 +57,14 @@ export default function OnboardingPage() {
 
   async function handleCopyLink() {
     if (!inviteCode) return;
-    setPending(true);
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/j/${inviteCode}`);
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/j/${inviteCode}`,
+      );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setError("Could not copy link.");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function handleSendInvite(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    setPending(true);
-    try {
-      const result = await sendClerkInvitation(inviteEmail);
-      if (result.error) { setError(result.error); return; }
-      setStep("waiting");
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setPending(false);
     }
   }
 
@@ -106,7 +92,12 @@ export default function OnboardingPage() {
             />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" size="lg" className="w-full mt-2" disabled={pending}>
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full mt-2"
+            disabled={pending || myHousehold === undefined}
+          >
             {pending ? "Setting up…" : "Get started →"}
           </Button>
         </form>
@@ -114,147 +105,72 @@ export default function OnboardingPage() {
     );
   }
 
-  if (step === "joined") {
-    return (
-      <div className="grow flex flex-col max-w-sm mx-auto w-full pt-16 gap-8">
-        <div className="flex flex-col gap-1">
-          <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-            All done · Welcome
-          </p>
-          <h1 className="text-3xl font-extrabold leading-tight">
-            You&apos;re in!
-          </h1>
-        </div>
-        <p className="text-muted-foreground text-sm leading-relaxed">
-          You&apos;ve joined the household. Head to the board to get started.
-        </p>
-        <Button size="lg" className="w-full" onClick={() => { window.location.href = "/app"; }}>
-          Go to the board →
-        </Button>
-      </div>
-    );
-  }
+  // step === "invite"
+  const shortLink = inviteCode
+    ? `${window.location.host}/j/${inviteCode}`
+    : "…";
 
-  if (step === "invite") {
-    const shortLink = inviteCode
-      ? `${window.location.host}/j/${inviteCode}`
-      : `${window.location.host}/j/…`;
-
-    return (
-      <div className="grow flex flex-col max-w-sm mx-auto w-full pt-16 gap-8">
-        <div className="flex flex-col gap-1">
-          <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-            Step 2 · Invite
-          </p>
-          <h1 className="text-3xl font-extrabold leading-tight">
-            Invite the person<br />you live with
-          </h1>
-        </div>
-
-        <div className="flex items-start gap-3 rounded-2xl bg-primary/8 px-4 py-3 text-sm text-primary">
-          <Users className="mt-0.5 shrink-0 size-4" />
-          <span>Home Tandem works with exactly two people.</span>
-        </div>
-
-        <form onSubmit={handleSendInvite} className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">Their email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="roommate@email.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              required
-            />
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="relative flex items-center gap-3 my-1">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            disabled={pending || !inviteCode}
-            className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm hover:bg-muted/50 transition-colors disabled:opacity-50"
-          >
-            <Link2 className="size-4 shrink-0 text-muted-foreground" />
-            <span className="font-medium">{copied ? "Copied!" : "Copy invite link"}</span>
-            <span className="ml-auto text-xs text-muted-foreground truncate max-w-35">
-              {shortLink}
-            </span>
-          </button>
-
-          <div className="flex gap-2 mt-4">
-            <Button
-              type="button"
-              variant="ghost"
-              size="lg"
-              className="flex-1"
-              onClick={() => { window.location.href = "/app"; }}
-            >
-              Skip for now
-            </Button>
-            <Button type="submit" size="lg" className="flex-1" disabled={pending || !inviteEmail}>
-              {pending ? "Sending…" : "Send invite →"}
-            </Button>
-          </div>
-        </form>
-      </div>
-    );
-  }
-
-  // step === "waiting"
   return (
     <div className="grow flex flex-col max-w-sm mx-auto w-full pt-16 gap-8">
       <div className="flex flex-col gap-1">
         <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-          Step 3 · Almost there
+          Step 2 · Invite
         </p>
         <h1 className="text-3xl font-extrabold leading-tight">
-          Waiting for your housemate
+          Invite the person
+          <br />
+          you live with
         </h1>
       </div>
 
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        We&apos;ve emailed an invite. The moment they join, you&apos;ll share one
-        board, one shopping list, one honest picture of the load.
-      </p>
-
-      <div className="flex items-center justify-center gap-6 py-8">
-        <div className="flex flex-col items-center gap-2">
-          <div className="size-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold">
-            {(user?.firstName?.[0] ?? user?.emailAddresses?.[0]?.emailAddress?.[0] ?? "Y").toUpperCase()}
-          </div>
-          <span className="text-sm font-medium">{user?.firstName ?? "You"}</span>
-          <span className="text-xs font-semibold text-green-600">joined</span>
-        </div>
-
-        <div className="text-2xl text-muted-foreground">🏠</div>
-
-        <div className="flex flex-col items-center gap-2">
-          <div className="size-16 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground">
-            <Users className="size-6" />
-          </div>
-          <span className="text-sm font-medium text-muted-foreground">
-            {inviteEmail ? inviteEmail.split("@")[0] : "Housemate"}
-          </span>
-          <span className="text-xs font-semibold text-amber-600">pending</span>
-        </div>
+      <div className="flex items-start gap-3 rounded-2xl bg-primary/8 px-4 py-3 text-sm text-primary">
+        <Users className="mt-0.5 shrink-0 size-4" />
+        <span>
+          Share this link with your housemate. They&apos;ll be added to your
+          household when they sign up.
+        </span>
       </div>
 
-      <div className="mt-auto flex flex-col gap-4 pb-8">
-        <Button size="lg" className="w-full" onClick={() => { window.location.href = "/app"; }}>
-          Explore the board while you wait
-        </Button>
-        <p className="text-center text-xs text-muted-foreground">
-          Closed household · two people · equal ownership
-        </p>
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={handleCopyLink}
+          disabled={!inviteCode}
+          className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm hover:bg-muted/50 transition-colors disabled:opacity-50"
+        >
+          <Link2 className="size-4 shrink-0 text-muted-foreground" />
+          <span className="font-medium">
+            {copied ? "Copied!" : "Copy invite link"}
+          </span>
+          <span className="ml-auto text-xs text-muted-foreground truncate max-w-40">
+            {shortLink}
+          </span>
+        </button>
+
+        <div className="flex gap-2 mt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            className="flex-1"
+            onClick={() => {
+              window.location.href = "/app";
+            }}
+          >
+            Skip for now
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            className="flex-1"
+            disabled={!copied}
+            onClick={() => {
+              window.location.href = "/app";
+            }}
+          >
+            Go to board →
+          </Button>
+        </div>
       </div>
     </div>
   );
