@@ -4,7 +4,7 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="h-screen">
+    <div className="h-screen bg-secondary">
       <main className="h-svh flex flex-col">{children}</main>
     </div>
   );

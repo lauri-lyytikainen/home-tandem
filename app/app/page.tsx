@@ -12,7 +12,7 @@ export default function App() {
         <TabsContent value="board">Board</TabsContent>
         <TabsContent value="shop">Shop</TabsContent>
         <TabsContent value="fairness">Fairness</TabsContent>
-        <TabsList className="w-full min-h-20 p-2 bg-background">
+        <TabsList className="w-full min-h-20 p-2 px-8 bg-background">
           <TabsTrigger value="home">
             <Home /> Home
           </TabsTrigger>
