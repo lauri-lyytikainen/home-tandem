@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Home Tandem",
-    short_name: "HomeTandem",
+    short_name: "Home Tandem",
     description: "A Progressive Web App built with Next.js",
     start_url: "/app",
     display: "standalone",
