@@ -8,7 +8,7 @@
  * @module
  */
 
-import type * as invites from "../invites.js";
+import type * as households from "../households.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +17,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  invites: typeof invites;
+  households: typeof households;
 }>;
 
 /**

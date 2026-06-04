@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link2, Users } from "lucide-react";
 
-type Step = "name" | "invite" | "waiting";
+type Step = "name" | "invite" | "waiting" | "joined";
 
 export default function OnboardingPage() {
   const { user } = useUser();
@@ -21,7 +21,8 @@ export default function OnboardingPage() {
   const [copied, setCopied] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
 
-  const getOrCreateInviteCode = useMutation(api.invites.getOrCreate);
+  const createHousehold = useMutation(api.households.create);
+  const joinHousehold = useMutation(api.households.joinByCode);
 
   async function handleNameSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -31,22 +32,32 @@ export default function OnboardingPage() {
       const formData = new FormData(e.currentTarget);
       const result = await completeOnboarding(formData);
       if (result.error) { setError(result.error); return; }
+
       await user?.reload();
-      setStep("invite");
-    } catch {
+
+      const pendingInvite = localStorage.getItem("pendingInvite");
+      if (pendingInvite) {
+        await joinHousehold({ code: pendingInvite });
+        localStorage.removeItem("pendingInvite");
+        setStep("joined");
+      } else {
+        const code = await createHousehold();
+        setInviteCode(code);
+        setStep("invite");
+      }
+    } catch (err) {
       setError("Something went wrong. Please try again.");
+      console.error(err);
     } finally {
       setPending(false);
     }
   }
 
   async function handleCopyLink() {
+    if (!inviteCode) return;
     setPending(true);
     try {
-      const code = inviteCode ?? (await getOrCreateInviteCode());
-      setInviteCode(code);
-      const appUrl = window.location.origin;
-      await navigator.clipboard.writeText(`${appUrl}/j/${code}`);
+      await navigator.clipboard.writeText(`${window.location.origin}/j/${inviteCode}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -61,13 +72,8 @@ export default function OnboardingPage() {
     setError(null);
     setPending(true);
     try {
-      const code = inviteCode ?? (await getOrCreateInviteCode());
-      setInviteCode(code);
       const result = await sendClerkInvitation(inviteEmail);
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
+      if (result.error) { setError(result.error); return; }
       setStep("waiting");
     } catch {
       setError("Something went wrong. Please try again.");
@@ -99,18 +105,32 @@ export default function OnboardingPage() {
               defaultValue={user?.fullName ?? ""}
             />
           </div>
-
           {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full mt-2"
-            disabled={pending}
-          >
+          <Button type="submit" size="lg" className="w-full mt-2" disabled={pending}>
             {pending ? "Setting up…" : "Get started →"}
           </Button>
         </form>
+      </div>
+    );
+  }
+
+  if (step === "joined") {
+    return (
+      <div className="grow flex flex-col max-w-sm mx-auto w-full pt-16 gap-8">
+        <div className="flex flex-col gap-1">
+          <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+            All done · Welcome
+          </p>
+          <h1 className="text-3xl font-extrabold leading-tight">
+            You&apos;re in!
+          </h1>
+        </div>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          You&apos;ve joined the household. Head to the board to get started.
+        </p>
+        <Button size="lg" className="w-full" onClick={() => { window.location.href = "/app"; }}>
+          Go to the board →
+        </Button>
       </div>
     );
   }
@@ -127,9 +147,7 @@ export default function OnboardingPage() {
             Step 2 · Invite
           </p>
           <h1 className="text-3xl font-extrabold leading-tight">
-            Invite the person
-            <br />
-            you live with
+            Invite the person<br />you live with
           </h1>
         </div>
 
@@ -151,7 +169,6 @@ export default function OnboardingPage() {
               required
             />
           </div>
-
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="relative flex items-center gap-3 my-1">
@@ -163,13 +180,11 @@ export default function OnboardingPage() {
           <button
             type="button"
             onClick={handleCopyLink}
-            disabled={pending}
+            disabled={pending || !inviteCode}
             className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm hover:bg-muted/50 transition-colors disabled:opacity-50"
           >
             <Link2 className="size-4 shrink-0 text-muted-foreground" />
-            <span className="font-medium">
-              {copied ? "Copied!" : "Copy invite link"}
-            </span>
+            <span className="font-medium">{copied ? "Copied!" : "Copy invite link"}</span>
             <span className="ml-auto text-xs text-muted-foreground truncate max-w-35">
               {shortLink}
             </span>
@@ -181,18 +196,11 @@ export default function OnboardingPage() {
               variant="ghost"
               size="lg"
               className="flex-1"
-              onClick={() => {
-                window.location.href = "/app";
-              }}
+              onClick={() => { window.location.href = "/app"; }}
             >
               Skip for now
             </Button>
-            <Button
-              type="submit"
-              size="lg"
-              className="flex-1"
-              disabled={pending || !inviteEmail}
-            >
+            <Button type="submit" size="lg" className="flex-1" disabled={pending || !inviteEmail}>
               {pending ? "Sending…" : "Send invite →"}
             </Button>
           </div>
@@ -214,29 +222,20 @@ export default function OnboardingPage() {
       </div>
 
       <p className="text-muted-foreground text-sm leading-relaxed">
-        We&apos;ve emailed an invite. The moment they join, you&apos;ll share
-        one board, one shopping list, one honest picture of the load.
+        We&apos;ve emailed an invite. The moment they join, you&apos;ll share one
+        board, one shopping list, one honest picture of the load.
       </p>
 
       <div className="flex items-center justify-center gap-6 py-8">
         <div className="flex flex-col items-center gap-2">
           <div className="size-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold">
-            {(
-              user?.firstName?.[0] ??
-              user?.emailAddresses?.[0]?.emailAddress?.[0] ??
-              "Y"
-            ).toUpperCase()}
+            {(user?.firstName?.[0] ?? user?.emailAddresses?.[0]?.emailAddress?.[0] ?? "Y").toUpperCase()}
           </div>
-          <span className="text-sm font-medium">
-            {user?.firstName ?? "You"}
-          </span>
+          <span className="text-sm font-medium">{user?.firstName ?? "You"}</span>
           <span className="text-xs font-semibold text-green-600">joined</span>
         </div>
 
-        <div className="flex flex-col items-center gap-1 text-muted-foreground">
-          <div className="text-2xl">🏠</div>
-          <span className="text-xs">{/* household name placeholder */}</span>
-        </div>
+        <div className="text-2xl text-muted-foreground">🏠</div>
 
         <div className="flex flex-col items-center gap-2">
           <div className="size-16 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground">
@@ -250,13 +249,7 @@ export default function OnboardingPage() {
       </div>
 
       <div className="mt-auto flex flex-col gap-4 pb-8">
-        <Button
-          size="lg"
-          className="w-full"
-          onClick={() => {
-            window.location.href = "/app";
-          }}
-        >
+        <Button size="lg" className="w-full" onClick={() => { window.location.href = "/app"; }}>
           Explore the board while you wait
         </Button>
         <p className="text-center text-xs text-muted-foreground">
