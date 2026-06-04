@@ -28,6 +28,7 @@ export default function RootLayout({
           appearance={{ theme: shadcn, options: { elevation: "flush" } }}
           signInUrl="/app/auth/sign-in"
           signUpUrl="/app/auth/sign-up"
+          afterSignOutUrl="/app"
         >
           <ConvexClientProvider>{children}</ConvexClientProvider>
         </ClerkProvider>
