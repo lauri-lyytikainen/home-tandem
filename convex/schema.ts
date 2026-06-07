@@ -31,6 +31,7 @@ export default defineSchema({
     category: v.optional(v.string()),
     quantity: v.optional(v.string()),
     completed: v.boolean(),
+    everCompleted: v.optional(v.boolean()),
     addedByTokenIdentifier: v.string(),
   })
     .index("by_household", ["householdId"])

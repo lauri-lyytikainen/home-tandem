@@ -28,7 +28,7 @@ export const list = query({
       .take(200);
 
     const ACTIVITY_WINDOW_MS = 5 * 60 * 1000;
-    const pending = items.filter((i) => !i.completed);
+    const pending = items.filter((i) => !i.completed && !i.everCompleted);
     const newest = pending.reduce<(typeof pending)[0] | null>(
       (acc, i) => (!acc || i._creationTime > acc._creationTime ? i : acc),
       null,
@@ -95,7 +95,10 @@ export const toggle = mutation({
 
     await requireHousehold(ctx, identity.tokenIdentifier);
 
-    await ctx.db.patch(args.id, { completed: !item.completed });
+    await ctx.db.patch(args.id, {
+      completed: !item.completed,
+      everCompleted: item.everCompleted || !item.completed,
+    });
   },
 });
 
@@ -111,6 +114,33 @@ export const remove = mutation({
     await requireHousehold(ctx, identity.tokenIdentifier);
 
     await ctx.db.delete(args.id);
+  },
+});
+
+export const update = mutation({
+  args: {
+    id: v.id("shoppingItems"),
+    name: v.string(),
+    category: v.optional(v.string()),
+    quantity: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const item = await ctx.db.get(args.id);
+    if (!item) throw new Error("Item not found");
+
+    await requireHousehold(ctx, identity.tokenIdentifier);
+
+    const name = args.name.trim();
+    if (!name) throw new Error("Item name cannot be empty");
+
+    await ctx.db.patch(args.id, {
+      name,
+      category: args.category,
+      quantity: args.quantity,
+    });
   },
 });
 
