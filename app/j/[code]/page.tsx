@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+
+function convexErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ConvexError) return String(err.data);
+  return fallback;
+}
 
 export default function JoinPage() {
   const { code } = useParams<{ code: string }>();
@@ -14,12 +20,16 @@ export default function JoinPage() {
   const router = useRouter();
   const joinHousehold = useMutation(api.households.joinByCode);
   const [error, setError] = useState<string | null>(null);
+  const joined = useRef(false);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!isLoaded || !isSignedIn || joined.current) return;
+    joined.current = true;
     joinHousehold({ code })
       .then(() => router.replace("/app"))
-      .catch((err: Error) => setError(err.message ?? "Invalid or expired invite link"));
+      .catch((err: unknown) =>
+        setError(convexErrorMessage(err, "Invalid or expired invite link"))
+      );
   }, [isLoaded, isSignedIn, code, joinHousehold, router]);
 
   if (!isLoaded || (isSignedIn && !error)) {
@@ -43,23 +53,30 @@ export default function JoinPage() {
           picture of who does what at home.
         </p>
       </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <div className="flex flex-col gap-3 w-full">
-        <Button asChild size="lg" className="w-full">
-          <Link href={`/app/auth/sign-up?redirect_url=${returnPath}`}>
-            Accept invite &amp; sign up
-          </Link>
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          Already have an account?{" "}
-          <Link
-            href={`/app/auth/sign-in?redirect_url=${returnPath}`}
-            className="underline underline-offset-2"
-          >
-            Sign in
-          </Link>
-        </p>
-      </div>
+      {error && (
+        <div className="flex flex-col gap-1 w-full rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive text-left">
+          <p className="font-semibold">This invite didn&apos;t work</p>
+          <p>{error}</p>
+        </div>
+      )}
+      {!error && (
+        <div className="flex flex-col gap-3 w-full">
+          <Button asChild size="lg" className="w-full">
+            <Link href={`/app/auth/sign-up?redirect_url=${returnPath}`}>
+              Accept invite &amp; sign up
+            </Link>
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Already have an account?{" "}
+            <Link
+              href={`/app/auth/sign-in?redirect_url=${returnPath}`}
+              className="underline underline-offset-2"
+            >
+              Sign in
+            </Link>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

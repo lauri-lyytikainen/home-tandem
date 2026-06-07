@@ -4,19 +4,46 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { getMemberProfiles, type MemberProfile } from "./_actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Check, Link2, Pencil, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  Link2,
+  LogOut,
+  Pencil,
+  RefreshCw,
+  X,
+} from "lucide-react";
 
-// A Convex tokenIdentifier is `${issuer}|${subject}`. The subject is the
-// Clerk user id, which is what the Clerk backend API needs to resolve a
-// member's display name and avatar.
 function clerkUserIdFromToken(tokenIdentifier: string) {
   return tokenIdentifier.split("|").pop() ?? tokenIdentifier;
+}
+
+function useCountdown(expiresAt: number | null) {
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const tick = () => setRemaining(Math.max(0, expiresAt - Date.now()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+
+  return expiresAt ? remaining : null;
+}
+
+function formatCountdown(ms: number) {
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 export default function HouseholdPage() {
@@ -26,6 +53,8 @@ export default function HouseholdPage() {
   const household = useQuery(api.households.getHousehold);
   const renameHousehold = useMutation(api.households.rename);
   const removeMember = useMutation(api.households.removeMember);
+  const generateInvite = useMutation(api.households.generateInvite);
+  const leaveHousehold = useMutation(api.households.leave);
 
   const [profiles, setProfiles] = useState<Record<string, MemberProfile>>({});
   const [editingName, setEditingName] = useState(false);
@@ -34,15 +63,37 @@ export default function HouseholdPage() {
   const [nameSaving, setNameSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+  const [localInvite, setLocalInvite] = useState<{
+    code: string;
+    expiresAt: number;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
-  // `HouseholdGate` (in the layout) redirects anyone without a household —
-  // including someone removed while viewing this very page — to onboarding.
+  // Use the invite from Convex if we don't have a fresher local one
+  const activeInvite: { code: string; expiresAt: number } | null =
+    localInvite ??
+    (household?.inviteCode && household.inviteExpiresAt
+      ? { code: household.inviteCode, expiresAt: household.inviteExpiresAt }
+      : null);
+
+  const inviteRemaining = useCountdown(activeInvite?.expiresAt ?? null);
+  const inviteExpired = inviteRemaining !== null && inviteRemaining === 0;
+
+  useEffect(() => {
+    if (inviteExpired && localInvite) {
+      const id = setTimeout(() => setLocalInvite(null), 0);
+      return () => clearTimeout(id);
+    }
+  }, [inviteExpired, localInvite]);
 
   useEffect(() => {
     if (!household) return;
-    const ids = household.members.map((m) => clerkUserIdFromToken(m.tokenIdentifier));
+    const ids = household.members.map((m) =>
+      clerkUserIdFromToken(m.tokenIdentifier),
+    );
     let cancelled = false;
     getMemberProfiles(ids).then((result) => {
       if (cancelled || "error" in result) return;
@@ -81,30 +132,60 @@ export default function HouseholdPage() {
       await renameHousehold({ name });
       setEditingName(false);
     } catch (err) {
-      setNameError(err instanceof Error ? err.message : "Could not rename household");
+      setNameError(
+        err instanceof ConvexError
+          ? String(err.data)
+          : "Could not rename household",
+      );
     } finally {
       setNameSaving(false);
     }
   }
 
-  async function handleRemove(membershipId: Id<"householdMemberships">, memberName: string) {
+  async function handleRemove(
+    membershipId: Id<"householdMemberships">,
+    memberName: string,
+  ) {
     if (!window.confirm(`Remove ${memberName} from the household?`)) return;
     setActionError(null);
     setRemovingId(membershipId);
     try {
       await removeMember({ membershipId });
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Could not remove member");
+      setActionError(
+        err instanceof ConvexError
+          ? String(err.data)
+          : "Could not remove member",
+      );
     } finally {
       setRemovingId(null);
     }
   }
 
+  async function handleGenerateInvite() {
+    setActionError(null);
+    setGeneratingInvite(true);
+    setCopied(false);
+    setCodeCopied(false);
+    try {
+      const result = await generateInvite();
+      setLocalInvite(result);
+    } catch (err) {
+      setActionError(
+        err instanceof ConvexError
+          ? String(err.data)
+          : "Could not generate invite",
+      );
+    } finally {
+      setGeneratingInvite(false);
+    }
+  }
+
   async function handleCopyInvite() {
-    if (!household!.inviteCode) return;
+    if (!activeInvite) return;
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}/j/${household!.inviteCode}`
+        `${window.location.origin}/j/${activeInvite.code}`,
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -114,15 +195,40 @@ export default function HouseholdPage() {
   }
 
   async function handleCopyCode() {
-    if (!household!.inviteCode) return;
+    if (!activeInvite) return;
     try {
-      await navigator.clipboard.writeText(household!.inviteCode);
+      await navigator.clipboard.writeText(activeInvite.code);
       setCodeCopied(true);
       setTimeout(() => setCodeCopied(false), 2000);
     } catch {
       setActionError("Could not copy code.");
     }
   }
+
+  async function handleLeave() {
+    const isOwner = household!.isOwner;
+    const hasOthers = household!.members.length > 1;
+    const message =
+      isOwner && !hasOthers
+        ? "Leave and delete this household? This cannot be undone."
+        : "Leave this household?";
+    if (!window.confirm(message)) return;
+    setActionError(null);
+    setLeaving(true);
+    try {
+      await leaveHousehold();
+      window.location.href = "/app/onboarding";
+    } catch (err) {
+      setActionError(
+        err instanceof ConvexError
+          ? String(err.data)
+          : "Could not leave household",
+      );
+      setLeaving(false);
+    }
+  }
+
+  const canLeave = !household.isOwner || household.members.length === 1;
 
   return (
     <div className="flex flex-col min-h-svh">
@@ -162,7 +268,9 @@ export default function HouseholdPage() {
                   <X className="size-4" />
                 </Button>
               </div>
-              {nameError && <p className="text-sm text-destructive">{nameError}</p>}
+              {nameError && (
+                <p className="text-sm text-destructive">{nameError}</p>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -198,7 +306,7 @@ export default function HouseholdPage() {
               const profile = profiles[clerkId];
               const displayName = member.isMe
                 ? `${profile?.name ?? user?.fullName ?? "You"} (you)`
-                : profile?.name ?? "Household member";
+                : (profile?.name ?? "Household member");
               return (
                 <li
                   key={member.membershipId}
@@ -212,9 +320,13 @@ export default function HouseholdPage() {
                     <AvatarFallback>{displayName[0] ?? "?"}</AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-medium truncate">{displayName}</span>
+                    <span className="text-sm font-medium truncate">
+                      {displayName}
+                    </span>
                     {member.isOwner && (
-                      <span className="text-xs text-muted-foreground">Owner</span>
+                      <span className="text-xs text-muted-foreground">
+                        Owner
+                      </span>
                     )}
                   </div>
                   {household.isOwner && !member.isOwner && (
@@ -223,9 +335,13 @@ export default function HouseholdPage() {
                       variant="destructive"
                       className="ml-auto"
                       disabled={removingId === member.membershipId}
-                      onClick={() => handleRemove(member.membershipId, displayName)}
+                      onClick={() =>
+                        handleRemove(member.membershipId, displayName)
+                      }
                     >
-                      {removingId === member.membershipId ? "Removing…" : "Remove"}
+                      {removingId === member.membershipId
+                        ? "Removing…"
+                        : "Remove"}
                     </Button>
                   )}
                 </li>
@@ -238,40 +354,90 @@ export default function HouseholdPage() {
           <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
             Invite
           </p>
-          <button
-            type="button"
-            onClick={handleCopyInvite}
-            disabled={!household.inviteCode}
-            className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm hover:bg-muted/50 transition-colors disabled:opacity-50"
-          >
-            <Link2 className="size-4 shrink-0 text-muted-foreground" />
-            <span className="font-medium">
-              {copied ? "Copied!" : "Copy invite link"}
-            </span>
-            <span className="ml-auto text-xs text-muted-foreground">
-              Up to {5 - household.members.length} more{" "}
-              {5 - household.members.length === 1 ? "spot" : "spots"} left
-            </span>
-          </button>
 
-          <div className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm">
-            <span className="text-muted-foreground shrink-0">Or share the code</span>
-            <span className="ml-auto font-mono font-semibold tracking-widest text-base">
-              {household.inviteCode ?? "…"}
-            </span>
+          {activeInvite && inviteRemaining !== null && inviteRemaining > 0 ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                <span>Expires in {formatCountdown(inviteRemaining)}</span>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:text-foreground transition-colors"
+                  disabled={generatingInvite}
+                  onClick={handleGenerateInvite}
+                >
+                  <RefreshCw className="size-3" />
+                  New invite
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyInvite}
+                className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
+              >
+                <Link2 className="size-4 shrink-0 text-muted-foreground" />
+                <span className="font-medium">
+                  {copied ? "Copied!" : "Copy invite link"}
+                </span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {5 - household.members.length} spot
+                  {5 - household.members.length === 1 ? "" : "s"} left
+                </span>
+              </button>
+              <div className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm">
+                <span className="text-muted-foreground shrink-0">
+                  Or share the code
+                </span>
+                <span className="ml-auto font-mono font-semibold tracking-widest text-base">
+                  {activeInvite.code}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyCode}
+                >
+                  {codeCopied ? "Copied!" : "Copy"}
+                </Button>
+              </div>
+            </div>
+          ) : (
             <Button
               type="button"
-              variant="ghost"
-              size="sm"
-              disabled={!household.inviteCode}
-              onClick={handleCopyCode}
+              variant="outline"
+              className="w-full"
+              disabled={generatingInvite || household.members.length >= 5}
+              onClick={handleGenerateInvite}
             >
-              {codeCopied ? "Copied!" : "Copy"}
+              {generatingInvite ? "Generating…" : "Generate invite link"}
             </Button>
-          </div>
+          )}
+          {household.members.length >= 5 && (
+            <p className="text-xs text-muted-foreground">
+              Household is full (5/5 members).
+            </p>
+          )}
         </section>
 
-        {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+        {actionError && (
+          <p className="text-sm text-destructive">{actionError}</p>
+        )}
+
+        <section className="flex flex-col gap-2 pt-2 border-t border-border">
+          <Button
+            variant="destructive"
+            className="w-full"
+            disabled={leaving || !canLeave}
+            onClick={handleLeave}
+          >
+            <LogOut className="size-4" />
+            {leaving ? "Leaving…" : "Leave household"}
+          </Button>
+          {!canLeave && (
+            <p className="text-xs text-muted-foreground text-center">
+              Remove all other members before leaving as the owner.
+            </p>
+          )}
+        </section>
       </div>
     </div>
   );

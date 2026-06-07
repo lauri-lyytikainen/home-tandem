@@ -1,15 +1,10 @@
-import { mutation, query, QueryCtx } from "./_generated/server";
+import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 
 const MAX_MEMBERS = 5;
 const MAX_NAME_LENGTH = 60;
+const INVITE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-// Looks up the caller's membership row. Uses `.take(1)` rather than
-// `.unique()` so a stray duplicate row (e.g. left over from rejoining via an
-// old invite link, or any other edge case) can never make this — and every
-// query built on top of it — throw. A thrown query never resolves to `null`,
-// which would silently break the "redirect to onboarding" logic that depends
-// on a definite answer.
 async function requireMembership(ctx: QueryCtx, tokenIdentifier: string) {
   const memberships = await ctx.db
     .query("householdMemberships")
@@ -23,8 +18,21 @@ function defaultHouseholdName(name: string | undefined) {
   return trimmed ? `${trimmed}'s household` : "Our household";
 }
 
-// Creates a household for the current user and returns their invite code.
-// Idempotent — calling it again returns the existing invite code.
+async function deleteHouseholdInvites(
+  ctx: MutationCtx,
+  householdId: import("./_generated/dataModel").Id<"households">,
+) {
+  const invites = await ctx.db
+    .query("invites")
+    .withIndex("by_household", (q) => q.eq("householdId", householdId))
+    .collect();
+  for (const invite of invites) {
+    await ctx.db.delete(invite._id);
+  }
+}
+
+// Creates a household for the current user and generates the first invite.
+// Returns the invite code.
 export const create = mutation({
   args: {},
   handler: async (ctx) => {
@@ -33,21 +41,34 @@ export const create = mutation({
 
     const existingMembership = await requireMembership(
       ctx,
-      identity.tokenIdentifier
+      identity.tokenIdentifier,
     );
-
     if (existingMembership) {
-      const existingInvite = await ctx.db
+      const existingInvites = await ctx.db
         .query("invites")
-        .withIndex("by_creator", (q) =>
-          q.eq("createdByTokenIdentifier", identity.tokenIdentifier)
+        .withIndex("by_household", (q) =>
+          q.eq("householdId", existingMembership.householdId),
         )
-        .unique();
-      return existingInvite?.code ?? null;
+        .take(1);
+      const existingInvite = existingInvites[0];
+      if (existingInvite && existingInvite.expiresAt > Date.now())
+        return existingInvite.code;
+      // Expired or missing — generate a fresh one
+      if (existingInvite) await ctx.db.delete(existingInvite._id);
+      const code = Math.random().toString(36).slice(2, 8);
+      await ctx.db.insert("invites", {
+        code,
+        householdId: existingMembership.householdId,
+        createdByTokenIdentifier: identity.tokenIdentifier,
+        expiresAt: Date.now() + INVITE_TTL_MS,
+      });
+      return code;
     }
 
     const householdId = await ctx.db.insert("households", {
-      name: defaultHouseholdName(identity.name ?? identity.givenName ?? undefined),
+      name: defaultHouseholdName(
+        identity.name ?? identity.givenName ?? undefined,
+      ),
       ownerTokenIdentifier: identity.tokenIdentifier,
     });
     await ctx.db.insert("householdMemberships", {
@@ -60,14 +81,40 @@ export const create = mutation({
       code,
       householdId,
       createdByTokenIdentifier: identity.tokenIdentifier,
+      expiresAt: Date.now() + INVITE_TTL_MS,
     });
 
     return code;
   },
 });
 
+// Generates a new invite for the household (any member may call this).
+// Replaces any existing invite. Returns the new code and expiry timestamp.
+export const generateInvite = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const membership = await requireMembership(ctx, identity.tokenIdentifier);
+    if (!membership) throw new Error("You are not in a household");
+
+    await deleteHouseholdInvites(ctx, membership.householdId);
+
+    const code = Math.random().toString(36).slice(2, 8);
+    const expiresAt = Date.now() + INVITE_TTL_MS;
+    await ctx.db.insert("invites", {
+      code,
+      householdId: membership.householdId,
+      createdByTokenIdentifier: identity.tokenIdentifier,
+      expiresAt,
+    });
+
+    return { code, expiresAt };
+  },
+});
+
 // Joins an existing household via invite code.
-// Idempotent — if already a member, returns the existing householdId.
 export const joinByCode = mutation({
   args: { code: v.string() },
   handler: async (ctx, args) => {
@@ -84,7 +131,9 @@ export const joinByCode = mutation({
       .query("invites")
       .withIndex("by_code", (q) => q.eq("code", code))
       .unique();
-    if (!invite) throw new Error("Invalid invite code");
+    if (!invite) throw new Error("Invalid or expired invite code");
+    if (invite.expiresAt < Date.now())
+      throw new Error("This invite link has expired");
 
     const members = await ctx.db
       .query("householdMemberships")
@@ -113,9 +162,6 @@ export const getMyHousehold = query({
   },
 });
 
-// Returns the current user's household with its name, the invite code, and
-// the membership roster (token identifiers only — profile info such as name
-// and avatar must be resolved client-side from the auth provider).
 export const getHousehold = query({
   args: {},
   handler: async (ctx) => {
@@ -133,18 +179,20 @@ export const getHousehold = query({
       .withIndex("by_household", (q) => q.eq("householdId", household._id))
       .collect();
 
-    const invite = await ctx.db
+    const invites = await ctx.db
       .query("invites")
-      .withIndex("by_creator", (q) =>
-        q.eq("createdByTokenIdentifier", household.ownerTokenIdentifier)
-      )
-      .unique();
+      .withIndex("by_household", (q) => q.eq("householdId", household._id))
+      .take(1);
+    const invite = invites[0] ?? null;
+    const now = Date.now();
+    const activeInvite = invite && invite.expiresAt > now ? invite : null;
 
     return {
       _id: household._id,
       name: household.name,
       isOwner: household.ownerTokenIdentifier === identity.tokenIdentifier,
-      inviteCode: invite?.code ?? null,
+      inviteCode: activeInvite?.code ?? null,
+      inviteExpiresAt: activeInvite?.expiresAt ?? null,
       members: memberships.map((m) => ({
         membershipId: m._id,
         tokenIdentifier: m.tokenIdentifier,
@@ -155,7 +203,6 @@ export const getHousehold = query({
   },
 });
 
-// Renames the household. Only the owner may do this.
 export const rename = mutation({
   args: { name: v.string() },
   handler: async (ctx, args) => {
@@ -165,7 +212,9 @@ export const rename = mutation({
     const name = args.name.trim();
     if (!name) throw new Error("Household name cannot be empty");
     if (name.length > MAX_NAME_LENGTH)
-      throw new Error(`Household name must be ${MAX_NAME_LENGTH} characters or fewer`);
+      throw new Error(
+        `Household name must be ${MAX_NAME_LENGTH} characters or fewer`,
+      );
 
     const membership = await requireMembership(ctx, identity.tokenIdentifier);
     if (!membership) throw new Error("You are not in a household");
@@ -180,8 +229,7 @@ export const rename = mutation({
   },
 });
 
-// Removes a member from the household. Only the owner may do this, and the
-// owner cannot remove themselves (they would have to delete the household).
+// Removes a member from the household. Only the owner may do this.
 export const removeMember = mutation({
   args: { membershipId: v.id("householdMemberships") },
   handler: async (ctx, args) => {
@@ -203,6 +251,44 @@ export const removeMember = mutation({
       throw new Error("The household owner cannot be removed");
 
     await ctx.db.delete(target._id);
+    return null;
+  },
+});
+
+// Leaves the household.
+// Non-owners can always leave. The owner can only leave when they are the
+// sole remaining member, which also deletes the household and all its invites.
+export const leave = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const membership = await requireMembership(ctx, identity.tokenIdentifier);
+    if (!membership) throw new Error("You are not in a household");
+
+    const household = await ctx.db.get(membership.householdId);
+    if (!household) throw new Error("Household not found");
+
+    const isOwner = household.ownerTokenIdentifier === identity.tokenIdentifier;
+
+    if (isOwner) {
+      const allMembers = await ctx.db
+        .query("householdMemberships")
+        .withIndex("by_household", (q) => q.eq("householdId", household._id))
+        .collect();
+      if (allMembers.length > 1)
+        throw new Error(
+          "You must remove all other members before leaving as the owner",
+        );
+
+      await deleteHouseholdInvites(ctx, household._id);
+      await ctx.db.delete(membership._id);
+      await ctx.db.delete(household._id);
+    } else {
+      await ctx.db.delete(membership._id);
+    }
+
     return null;
   },
 });

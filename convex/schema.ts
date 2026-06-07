@@ -18,7 +18,9 @@ export default defineSchema({
     code: v.string(),
     householdId: v.id("households"),
     createdByTokenIdentifier: v.string(),
+    expiresAt: v.number(),
   })
     .index("by_code", ["code"])
-    .index("by_creator", ["createdByTokenIdentifier"]),
+    .index("by_creator", ["createdByTokenIdentifier"])
+    .index("by_household", ["householdId"]),
 });

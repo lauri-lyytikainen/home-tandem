@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@/convex/_generated/api";
 import { completeOnboarding } from "./_actions";
 import { Button } from "@/components/ui/button";
@@ -94,7 +95,7 @@ export default function OnboardingPage() {
       await joinHousehold({ code });
       window.location.href = "/app";
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Invalid or expired invite code");
+      setError(err instanceof ConvexError ? String(err.data) : "Invalid or expired invite code");
     } finally {
       setPending(false);
     }
