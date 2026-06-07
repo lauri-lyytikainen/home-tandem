@@ -10,8 +10,13 @@ export async function completeOnboarding(formData: FormData) {
   if (!name?.trim()) return { error: "Name is required" };
 
   const client = await clerkClient();
+  const parts = name.trim().split(/\s+/);
+  const firstName = parts[0];
+  const lastName = parts.slice(1).join(" ") || undefined;
   await client.users.updateUser(userId, {
-    publicMetadata: { onboardingComplete: true, name: name.trim() },
+    firstName,
+    lastName,
+    publicMetadata: { onboardingComplete: true },
   });
 
   return { success: true };
