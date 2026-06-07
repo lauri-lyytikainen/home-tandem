@@ -144,6 +144,25 @@ export const update = mutation({
   },
 });
 
+export const clearAll = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const householdId = await requireHousehold(ctx, identity.tokenIdentifier);
+
+    const items = await ctx.db
+      .query("shoppingItems")
+      .withIndex("by_household", (q) => q.eq("householdId", householdId))
+      .take(200);
+
+    for (const item of items) {
+      await ctx.db.delete(item._id);
+    }
+  },
+});
+
 export const clearCompleted = mutation({
   args: {},
   handler: async (ctx) => {

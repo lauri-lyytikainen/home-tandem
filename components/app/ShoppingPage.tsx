@@ -6,6 +6,17 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -13,7 +24,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getMemberProfiles, MemberProfile } from "@/app/app/household/_actions";
-import { Minus, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Minus,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  ShoppingCart,
+  Trash2,
+} from "lucide-react";
 
 const CATEGORIES = [
   "Dairy & Chilled",
@@ -107,20 +132,31 @@ function ItemRow({
   ) => void;
 }) {
   const profile = profiles.get(item.addedByClerkUserId);
+  const [prevIsEditing, setPrevIsEditing] = useState(isEditing);
   const [editName, setEditName] = useState(item.name);
-  const [editCategory, setEditCategory] = useState<string | null>(item.category);
+  const [editCategory, setEditCategory] = useState<string | null>(
+    item.category,
+  );
   const [editQuantity, setEditQuantity] = useState(parseQty(item.quantity));
-  const editInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync edit fields when edit mode opens
-  useEffect(() => {
+  if (isEditing !== prevIsEditing) {
+    setPrevIsEditing(isEditing);
     if (isEditing) {
       setEditName(item.name);
       setEditCategory(item.category);
       setEditQuantity(parseQty(item.quantity));
-      setTimeout(() => editInputRef.current?.focus(), 0);
     }
-  }, [isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
+
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus input when edit mode opens
+  useEffect(() => {
+    if (isEditing) {
+      const id = setTimeout(() => editInputRef.current?.focus(), 0);
+      return () => clearTimeout(id);
+    }
+  }, [isEditing]);
 
   const saveEdit = () => {
     const name = editName.trim();
@@ -137,7 +173,8 @@ function ItemRow({
           onChange={(e) => setEditName(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") saveEdit();
-            if (e.key === "Escape") onUpdate(item._id, item.name, item.category, item.quantity);
+            if (e.key === "Escape")
+              onUpdate(item._id, item.name, item.category, item.quantity);
           }}
           className="w-full text-sm font-medium bg-muted rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary/30"
         />
@@ -147,11 +184,15 @@ function ItemRow({
             <QuantityStepper value={editQuantity} onChange={setEditQuantity} />
           </div>
           <div className="flex gap-1 flex-wrap flex-1 pt-0.5">
-            <span className="text-xs text-muted-foreground w-full mb-0.5">Category</span>
+            <span className="text-xs text-muted-foreground w-full mb-0.5">
+              Category
+            </span>
             {CATEGORIES.map((cat) => (
               <button
                 key={cat}
-                onClick={() => setEditCategory(editCategory === cat ? null : cat)}
+                onClick={() =>
+                  setEditCategory(editCategory === cat ? null : cat)
+                }
                 className={`text-xs px-2 py-1 rounded-full border transition-colors ${
                   editCategory === cat
                     ? "bg-primary text-primary-foreground border-primary"
@@ -165,7 +206,9 @@ function ItemRow({
         </div>
         <div className="flex gap-2 justify-end">
           <button
-            onClick={() => onUpdate(item._id, item.name, item.category, item.quantity)}
+            onClick={() =>
+              onUpdate(item._id, item.name, item.category, item.quantity)
+            }
             className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted transition-colors"
           >
             Cancel
@@ -215,7 +258,10 @@ function ItemRow({
         {item.name}
       </span>
 
-      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="flex items-center gap-2 shrink-0"
+        onClick={(e) => e.stopPropagation()}
+      >
         {item.quantity && (
           <span className="text-xs text-muted-foreground">{item.quantity}</span>
         )}
@@ -316,13 +362,16 @@ export default function ShoppingPage() {
   const removeMutation = useMutation(api.shopping.remove);
   const updateMutation = useMutation(api.shopping.update);
   const clearCompletedMutation = useMutation(api.shopping.clearCompleted);
+  const clearAllMutation = useMutation(api.shopping.clearAll);
 
   const [inputValue, setInputValue] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [addQuantity, setAddQuantity] = useState(0);
   const [showCategories, setShowCategories] = useState(false);
   const [editingId, setEditingId] = useState<Id<"shoppingItems"> | null>(null);
-  const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
+  const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(
+    new Map(),
+  );
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -368,7 +417,12 @@ export default function ShoppingPage() {
       quantity: string | null,
     ) => {
       setEditingId(null);
-      updateMutation({ id, name, category: category ?? undefined, quantity: quantity ?? undefined });
+      updateMutation({
+        id,
+        name,
+        category: category ?? undefined,
+        quantity: quantity ?? undefined,
+      });
     },
     [updateMutation],
   );
@@ -399,7 +453,9 @@ export default function ShoppingPage() {
     ...CATEGORIES.filter((c) => grouped.has(c)).map(
       (c) => [c, grouped.get(c)!] as [string, ShoppingItem[]],
     ),
-    ...(grouped.has(null) ? [[null, grouped.get(null)!] as [null, ShoppingItem[]]] : []),
+    ...(grouped.has(null)
+      ? [[null, grouped.get(null)!] as [null, ShoppingItem[]]]
+      : []),
   ];
 
   const activityProfile = data.recentActivity
@@ -437,14 +493,44 @@ export default function ShoppingPage() {
             )}
           </p>
         </div>
-        {completedItems.length > 0 && (
-          <button
-            onClick={() => clearCompletedMutation()}
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mt-2"
-          >
-            Clear completed
-          </button>
-        )}
+        <div className="flex flex-col items-end gap-2 mt-2">
+          {data.items.length > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="text-xs font-semibold text-destructive border border-destructive/30 rounded-full px-3 py-1.5 hover:bg-destructive/10 transition-colors">
+                  Clear all
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Clear entire list?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently remove all {data.items.length} item
+                    {data.items.length !== 1 ? "s" : ""} from the shopping list.
+                    This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => clearAllMutation()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Clear all
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          {completedItems.length > 0 && (
+            <button
+              onClick={() => clearCompletedMutation()}
+              className="text-xs font-semibold text-muted-foreground border border-border rounded-full px-3 py-1.5 hover:bg-muted transition-colors"
+            >
+              Clear completed
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Add input */}
@@ -476,8 +562,13 @@ export default function ShoppingPage() {
           {showCategories && (
             <div className="px-4 pb-3 flex flex-col gap-2 border-t border-border">
               <div className="flex items-center gap-3 pt-2">
-                <span className="text-xs text-muted-foreground shrink-0">Qty</span>
-                <QuantityStepper value={addQuantity} onChange={setAddQuantity} />
+                <span className="text-xs text-muted-foreground shrink-0">
+                  Qty
+                </span>
+                <QuantityStepper
+                  value={addQuantity}
+                  onChange={setAddQuantity}
+                />
               </div>
               <div className="flex gap-1.5 flex-wrap">
                 {CATEGORIES.map((cat) => (
@@ -506,10 +597,15 @@ export default function ShoppingPage() {
         <div className="mx-4 mb-3 bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-2.5 flex items-center gap-3">
           <Avatar className="w-7 h-7 shrink-0">
             {activityProfile && (
-              <AvatarImage src={activityProfile.imageUrl} alt={activityProfile.name} />
+              <AvatarImage
+                src={activityProfile.imageUrl}
+                alt={activityProfile.name}
+              />
             )}
             <AvatarFallback className="text-[10px] bg-primary text-primary-foreground">
-              {activityProfile ? activityProfile.name.slice(0, 2).toUpperCase() : "?"}
+              {activityProfile
+                ? activityProfile.name.slice(0, 2).toUpperCase()
+                : "?"}
             </AvatarFallback>
           </Avatar>
           <p className="text-sm flex-1 min-w-0">
@@ -527,23 +623,29 @@ export default function ShoppingPage() {
       )}
 
       {/* Scrollable list */}
-      <div className="flex-1 min-h-0 overflow-y-auto pb-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {sortedGroups.length > 0 ? (
-          sortedGroups.map(([category, items]) => (
-            <ItemGroup
-              key={category ?? "__uncategorized"}
-              category={category}
-              items={items}
-              {...sharedRowProps}
-            />
-          ))
-        ) : (
-          completedItems.length === 0 && (
-            <div className="mx-4 py-8 text-center text-muted-foreground text-sm">
-              No items yet — add something above
-            </div>
-          )
-        )}
+      <div className="flex-1 min-h-0 overflow-y-auto pb-6 flex flex-col [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none">
+        {sortedGroups.length > 0
+          ? sortedGroups.map(([category, items]) => (
+              <ItemGroup
+                key={category ?? "__uncategorized"}
+                category={category}
+                items={items}
+                {...sharedRowProps}
+              />
+            ))
+          : completedItems.length === 0 && (
+              <Empty className="border-border mx-auto">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <ShoppingCart />
+                  </EmptyMedia>
+                  <EmptyTitle>List is empty</EmptyTitle>
+                  <EmptyDescription>
+                    Add your first item above to get started.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
 
         {/* In the basket */}
         {completedItems.length > 0 && (
@@ -555,7 +657,11 @@ export default function ShoppingPage() {
               {completedItems.map((item, idx) => (
                 <div
                   key={item._id}
-                  className={idx < completedItems.length - 1 ? "border-b border-border" : ""}
+                  className={
+                    idx < completedItems.length - 1
+                      ? "border-b border-border"
+                      : ""
+                  }
                 >
                   <ItemRow
                     item={item}
