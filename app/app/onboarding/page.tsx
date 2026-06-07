@@ -117,7 +117,7 @@ export default function OnboardingPage() {
           Step 2 · Invite
         </p>
         <h1 className="text-3xl font-extrabold leading-tight">
-          Invite the person
+          Invite the people
           <br />
           you live with
         </h1>
@@ -126,8 +126,8 @@ export default function OnboardingPage() {
       <div className="flex items-start gap-3 rounded-2xl bg-primary/8 px-4 py-3 text-sm text-primary">
         <Users className="mt-0.5 shrink-0 size-4" />
         <span>
-          Share this link with your housemate. They&apos;ll be added to your
-          household when they sign up.
+          Share this link with your housemates (up to 4 others). Each person
+          will be added to your household when they sign up.
         </span>
       </div>
 

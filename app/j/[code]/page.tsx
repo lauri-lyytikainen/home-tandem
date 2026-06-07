@@ -19,7 +19,7 @@ export default function JoinPage() {
     if (!isLoaded || !isSignedIn) return;
     joinHousehold({ code })
       .then(() => router.replace("/app"))
-      .catch((err: Error) => setError(err.message ?? "Invalid invite link"));
+      .catch((err: Error) => setError(err.message ?? "Invalid or expired invite link"));
   }, [isLoaded, isSignedIn, code, joinHousehold, router]);
 
   if (!isLoaded || (isSignedIn && !error)) {
@@ -39,8 +39,8 @@ export default function JoinPage() {
           You&apos;ve been invited to Home Tandem
         </h1>
         <p className="text-muted-foreground text-sm">
-          Create your account to share one board, one shopping list, one honest
-          picture of the load.
+          Create your account to share a board, shopping list, and a fair
+          picture of who does what at home.
         </p>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}

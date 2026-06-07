@@ -65,6 +65,12 @@ export const joinByCode = mutation({
       .unique();
     if (!invite) throw new Error("Invalid invite code");
 
+    const members = await ctx.db
+      .query("householdMemberships")
+      .withIndex("by_household", (q) => q.eq("householdId", invite.householdId))
+      .collect();
+    if (members.length >= 5) throw new Error("This household is full (max 5 people)");
+
     await ctx.db.insert("householdMemberships", {
       householdId: invite.householdId,
       tokenIdentifier: identity.tokenIdentifier,

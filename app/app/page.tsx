@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import HomePage from "@/components/app/HomePage";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Home, LayoutDashboard, Scale, ShoppingCart } from "lucide-react";
@@ -7,7 +8,9 @@ export default function App() {
     <div className="grow flex flex-col bg-secondary">
       <Tabs defaultValue="home" className="w-full grow">
         <TabsContent value="home">
-          <HomePage />
+          <Suspense fallback={null}>
+            <HomePage />
+          </Suspense>
         </TabsContent>
         <TabsContent value="board">Board</TabsContent>
         <TabsContent value="shop">Shop</TabsContent>
