@@ -5,6 +5,7 @@ export default defineSchema({
   households: defineTable({
     name: v.string(),
     ownerTokenIdentifier: v.string(),
+    memberCount: v.number(),
   }),
 
   householdMemberships: defineTable({

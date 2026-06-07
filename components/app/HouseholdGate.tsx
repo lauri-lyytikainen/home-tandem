@@ -30,9 +30,10 @@ export default function HouseholdGate({ children }: { children: React.ReactNode 
   );
 
   useEffect(() => {
-    if (exempt) return;
+    if (!isLoaded || exempt) return;
+    if (!isSignedIn) { router.replace("/app/auth/sign-in"); return; }
     if (household === null) router.replace("/app/onboarding");
-  }, [exempt, household, router]);
+  }, [exempt, household, isLoaded, isSignedIn, router]);
 
   return <>{children}</>;
 }

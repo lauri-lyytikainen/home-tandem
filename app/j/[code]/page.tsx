@@ -20,19 +20,23 @@ export default function JoinPage() {
   const router = useRouter();
   const joinHousehold = useMutation(api.households.joinByCode);
   const [error, setError] = useState<string | null>(null);
+  // Track in-flight join separately so the spinner clears even on network failure.
+  const [joining, setJoining] = useState(false);
   const joined = useRef(false);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || joined.current) return;
     joined.current = true;
+    setJoining(true);
     joinHousehold({ code })
       .then(() => router.replace("/app"))
       .catch((err: unknown) =>
         setError(convexErrorMessage(err, "Invalid or expired invite link"))
-      );
+      )
+      .finally(() => setJoining(false));
   }, [isLoaded, isSignedIn, code, joinHousehold, router]);
 
-  if (!isLoaded || (isSignedIn && !error)) {
+  if (!isLoaded || joining) {
     return (
       <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
         Joining household…

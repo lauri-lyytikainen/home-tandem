@@ -8,6 +8,7 @@ export async function completeOnboarding(formData: FormData) {
 
   const name = formData.get("name") as string;
   if (!name?.trim()) return { error: "Name is required" };
+  if (name.trim().length > 100) return { error: "Name must be 100 characters or fewer" };
 
   const client = await clerkClient();
   const parts = name.trim().split(/\s+/);

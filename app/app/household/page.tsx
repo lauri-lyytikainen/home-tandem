@@ -21,9 +21,6 @@ import {
   X,
 } from "lucide-react";
 
-function clerkUserIdFromToken(tokenIdentifier: string) {
-  return tokenIdentifier.split("|").pop() ?? tokenIdentifier;
-}
 
 function useCountdown(expiresAt: number | null) {
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -91,9 +88,7 @@ export default function HouseholdPage() {
 
   useEffect(() => {
     if (!household) return;
-    const ids = household.members.map((m) =>
-      clerkUserIdFromToken(m.tokenIdentifier),
-    );
+    const ids = household.members.map((m) => m.clerkUserId);
     let cancelled = false;
     getMemberProfiles(ids).then((result) => {
       if (cancelled || "error" in result) return;
@@ -302,8 +297,7 @@ export default function HouseholdPage() {
           </p>
           <ul className="flex flex-col gap-1">
             {household.members.map((member) => {
-              const clerkId = clerkUserIdFromToken(member.tokenIdentifier);
-              const profile = profiles[clerkId];
+              const profile = profiles[member.clerkUserId];
               const displayName = member.isMe
                 ? `${profile?.name ?? user?.fullName ?? "You"} (you)`
                 : (profile?.name ?? "Household member");

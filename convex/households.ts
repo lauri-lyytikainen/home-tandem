@@ -31,6 +31,27 @@ async function deleteHouseholdInvites(
   }
 }
 
+// Cryptographically random 6-character base-36 code.
+function generateCode(): string {
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  const chars = "0123456789abcdefghijklmnopqrstuvwxyz";
+  return Array.from(bytes, (b) => chars[b % 36]).join("");
+}
+
+// Generates a code that doesn't collide with any existing invite code.
+async function generateUniqueCode(ctx: MutationCtx): Promise<string> {
+  for (let i = 0; i < 10; i++) {
+    const code = generateCode();
+    const existing = await ctx.db
+      .query("invites")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .first();
+    if (!existing) return code;
+  }
+  throw new Error("Could not generate a unique invite code — please try again");
+}
+
 // Creates a household for the current user and generates the first invite.
 // Returns the invite code.
 export const create = mutation({
@@ -44,18 +65,21 @@ export const create = mutation({
       identity.tokenIdentifier,
     );
     if (existingMembership) {
+      // Clean up ALL existing invites (not just the first) to avoid orphans,
+      // then reuse a valid one or issue a fresh one.
       const existingInvites = await ctx.db
         .query("invites")
         .withIndex("by_household", (q) =>
           q.eq("householdId", existingMembership.householdId),
         )
-        .take(1);
-      const existingInvite = existingInvites[0];
-      if (existingInvite && existingInvite.expiresAt > Date.now())
-        return existingInvite.code;
-      // Expired or missing — generate a fresh one
-      if (existingInvite) await ctx.db.delete(existingInvite._id);
-      const code = Math.random().toString(36).slice(2, 8);
+        .collect();
+      const validInvite = existingInvites.find(
+        (inv) => inv.expiresAt > Date.now(),
+      );
+      if (validInvite) return validInvite.code;
+      for (const inv of existingInvites) await ctx.db.delete(inv._id);
+
+      const code = await generateUniqueCode(ctx);
       await ctx.db.insert("invites", {
         code,
         householdId: existingMembership.householdId,
@@ -70,13 +94,14 @@ export const create = mutation({
         identity.name ?? identity.givenName ?? undefined,
       ),
       ownerTokenIdentifier: identity.tokenIdentifier,
+      memberCount: 1,
     });
     await ctx.db.insert("householdMemberships", {
       householdId,
       tokenIdentifier: identity.tokenIdentifier,
     });
 
-    const code = Math.random().toString(36).slice(2, 8);
+    const code = await generateUniqueCode(ctx);
     await ctx.db.insert("invites", {
       code,
       householdId,
@@ -101,7 +126,7 @@ export const generateInvite = mutation({
 
     await deleteHouseholdInvites(ctx, membership.householdId);
 
-    const code = Math.random().toString(36).slice(2, 8);
+    const code = await generateUniqueCode(ctx);
     const expiresAt = Date.now() + INVITE_TTL_MS;
     await ctx.db.insert("invites", {
       code,
@@ -135,17 +160,23 @@ export const joinByCode = mutation({
     if (invite.expiresAt < Date.now())
       throw new Error("This invite link has expired");
 
-    const members = await ctx.db
-      .query("householdMemberships")
-      .withIndex("by_household", (q) => q.eq("householdId", invite.householdId))
-      .collect();
-    if (members.length >= MAX_MEMBERS)
+    // Read the household document and atomically increment memberCount.
+    // Writing to this shared document causes Convex OCC to serialize concurrent
+    // joins, preventing the member count from exceeding MAX_MEMBERS.
+    const household = await ctx.db.get(invite.householdId);
+    if (!household) throw new Error("Household no longer exists");
+    if (household.memberCount >= MAX_MEMBERS)
       throw new Error(`This household is full (max ${MAX_MEMBERS} people)`);
 
+    await ctx.db.patch(invite.householdId, {
+      memberCount: household.memberCount + 1,
+    });
     await ctx.db.insert("householdMemberships", {
       householdId: invite.householdId,
       tokenIdentifier: identity.tokenIdentifier,
     });
+    // Invalidate the invite so it can't be reused.
+    await ctx.db.delete(invite._id);
 
     return invite.householdId;
   },
@@ -190,12 +221,15 @@ export const getHousehold = query({
     return {
       _id: household._id,
       name: household.name,
+      memberCount: household.memberCount,
       isOwner: household.ownerTokenIdentifier === identity.tokenIdentifier,
       inviteCode: activeInvite?.code ?? null,
       inviteExpiresAt: activeInvite?.expiresAt ?? null,
       members: memberships.map((m) => ({
         membershipId: m._id,
-        tokenIdentifier: m.tokenIdentifier,
+        // Return only the Clerk user ID, not the full tokenIdentifier, to
+        // avoid leaking the auth-provider-encoded identity to all members.
+        clerkUserId: m.tokenIdentifier.split("|").pop() ?? m.tokenIdentifier,
         isOwner: m.tokenIdentifier === household.ownerTokenIdentifier,
         isMe: m.tokenIdentifier === identity.tokenIdentifier,
       })),
@@ -251,6 +285,9 @@ export const removeMember = mutation({
       throw new Error("The household owner cannot be removed");
 
     await ctx.db.delete(target._id);
+    await ctx.db.patch(household._id, {
+      memberCount: Math.max(1, household.memberCount - 1),
+    });
     return null;
   },
 });
@@ -287,6 +324,9 @@ export const leave = mutation({
       await ctx.db.delete(household._id);
     } else {
       await ctx.db.delete(membership._id);
+      await ctx.db.patch(household._id, {
+        memberCount: Math.max(1, household.memberCount - 1),
+      });
     }
 
     return null;
