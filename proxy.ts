@@ -32,9 +32,16 @@ export default clerkMiddleware(async (auth, req) => {
     if (!userId) {
       return NextResponse.redirect(new URL("/app/welcome", req.url));
     }
-    if (sessionClaims?.metadata?.onboardingComplete) {
-      return NextResponse.redirect(new URL("/app", req.url));
-    }
+    // Note: we deliberately do NOT bounce users away from onboarding just
+    // because `sessionClaims.metadata.onboardingComplete` is true. That flag
+    // only records "has this person picked a display name" — it's set once
+    // and never cleared. Whether someone *currently* needs onboarding also
+    // depends on whether they belong to a household, which lives in Convex
+    // and isn't visible to middleware (e.g. a user who was removed from
+    // their household still has `onboardingComplete: true` but very much
+    // needs to go through onboarding again to create/join a new one).
+    // `HouseholdGate` + the onboarding page itself decide that, reactively,
+    // from live Convex data.
     return NextResponse.next();
   }
 
@@ -43,6 +50,10 @@ export default clerkMiddleware(async (auth, req) => {
       return NextResponse.redirect(new URL("/app/welcome", req.url));
     }
 
+    // Brand new users who haven't even picked a display name yet always need
+    // onboarding. (Users who *have* a name but lost their household are
+    // caught client-side by `HouseholdGate`, since household membership is
+    // Convex state that middleware can't see.)
     if (!sessionClaims?.metadata?.onboardingComplete) {
       return NextResponse.redirect(new URL("/app/onboarding", req.url));
     }

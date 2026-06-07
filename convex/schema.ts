@@ -2,7 +2,10 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  households: defineTable({}),
+  households: defineTable({
+    name: v.string(),
+    ownerTokenIdentifier: v.string(),
+  }),
 
   householdMemberships: defineTable({
     householdId: v.id("households"),

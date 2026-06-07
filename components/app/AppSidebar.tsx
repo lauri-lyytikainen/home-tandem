@@ -44,7 +44,10 @@ export default function AppSidebar({ open, onClose }: AppSidebarProps) {
             <User className="size-5 text-muted-foreground" />
             Profile
           </button>
-          <button className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium hover:bg-muted transition-colors text-left">
+          <button
+            className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium hover:bg-muted transition-colors text-left"
+            onClick={() => router.push("/app/household")}
+          >
             <Home className="size-5 text-muted-foreground" />
             Household
           </button>
