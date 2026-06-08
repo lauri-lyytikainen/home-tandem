@@ -1,12 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Image from "next/image";
 import logo from "@/public/logo.svg";
+import { Plus } from "lucide-react";
 import AppSidebar from "./AppSidebar";
+import TaskList from "./TaskList";
+import TaskFormDrawer from "./TaskFormDrawer";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function HomePage() {
@@ -15,6 +19,7 @@ export default function HomePage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const sidebarOpen = searchParams.get("menu") === "1";
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
 
   // `HouseholdGate` (in the layout) handles redirecting users without a
   // household — including ones who were just kicked, back to onboarding.
@@ -23,7 +28,7 @@ export default function HomePage() {
   return (
     <>
       <AppSidebar open={sidebarOpen} onClose={() => router.back()} />
-      <div className="flex flex-col p-4">
+      <div className="flex flex-col p-4 grow min-h-0 overflow-y-auto">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <Image src={logo} alt="Tandem logo" className="w-8 h-8 shrink-0" />
@@ -42,7 +47,18 @@ export default function HomePage() {
             </Avatar>
           </button>
         </div>
+
+        <TaskList />
       </div>
+
+      <button
+        onClick={() => setTaskFormOpen(true)}
+        aria-label="Add task"
+        className="fixed bottom-24 right-4 z-30 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+      >
+        <Plus className="w-5 h-5" />
+      </button>
+      <TaskFormDrawer open={taskFormOpen} onOpenChange={setTaskFormOpen} />
     </>
   );
 }

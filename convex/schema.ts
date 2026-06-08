@@ -25,6 +25,34 @@ export default defineSchema({
     .index("by_creator", ["createdByTokenIdentifier"])
     .index("by_household", ["householdId"]),
 
+  tasks: defineTable({
+    householdId: v.id("households"),
+    name: v.string(),
+    category: v.union(
+      v.literal("maintenance"),
+      v.literal("cleaning"),
+      v.literal("admin"),
+      v.literal("groceries"),
+      v.literal("other"),
+    ),
+    status: v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
+    note: v.optional(v.string()),
+    dueDate: v.optional(v.number()),
+    // undefined = "Shared" (anyone can pick up); otherwise a specific member
+    assigneeMembershipId: v.optional(v.id("householdMemberships")),
+    recurrence: v.optional(
+      v.object({
+        frequency: v.union(v.literal("daily"), v.literal("weekly"), v.literal("monthly")),
+        interval: v.number(),
+        rotateAssignee: v.boolean(),
+      }),
+    ),
+    createdByTokenIdentifier: v.string(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_household_and_status", ["householdId", "status"])
+    .index("by_household_and_assignee", ["householdId", "assigneeMembershipId"]),
+
   shoppingItems: defineTable({
     householdId: v.id("households"),
     name: v.string(),

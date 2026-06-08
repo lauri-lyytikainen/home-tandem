@@ -9,7 +9,9 @@
  */
 
 import type * as households from "../households.js";
+import type * as lib from "../lib.js";
 import type * as shopping from "../shopping.js";
+import type * as tasks from "../tasks.js";
 
 import type {
   ApiFromModules,
@@ -19,7 +21,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   households: typeof households;
+  lib: typeof lib;
   shopping: typeof shopping;
+  tasks: typeof tasks;
 }>;
 
 /**
