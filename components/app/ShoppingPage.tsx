@@ -176,7 +176,7 @@ function ItemRow({
             if (e.key === "Escape")
               onUpdate(item._id, item.name, item.category, item.quantity);
           }}
-          className="w-full text-sm font-medium bg-muted rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary/30"
+          className="w-full text-base font-medium bg-muted rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary/30"
         />
         <div className="flex gap-3 items-start">
           <div className="flex flex-col gap-1 items-start shrink-0">
@@ -548,7 +548,7 @@ export default function ShoppingPage() {
               onKeyDown={handleKeyDown}
               onFocus={() => setShowCategories(inputValue.length > 0)}
               placeholder="Add item — milk, bin bags…"
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
             />
             {inputValue.trim().length > 0 && (
               <button
