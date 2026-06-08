@@ -6,7 +6,14 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Users } from "lucide-react";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { ListChecks, Users } from "lucide-react";
 import { getMemberProfiles, MemberProfile } from "@/app/app/household/_actions";
 import {
   CATEGORY_META,
@@ -31,7 +38,7 @@ export type Task = {
   _creationTime: number;
 };
 
-function TaskRow({
+export function TaskRow({
   task,
   profile,
   onOpen,
@@ -155,9 +162,15 @@ export default function TaskList() {
         <div className="flex flex-col gap-2">
           {today.map(renderRow)}
           {data.tasks.length === 0 && (
-            <p className="text-sm text-muted-foreground px-1 py-6 text-center">
-              No tasks yet — tap + to add one.
-            </p>
+            <Empty className="border-border mx-auto">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ListChecks />
+                </EmptyMedia>
+                <EmptyTitle>No tasks yet</EmptyTitle>
+                <EmptyDescription>Tap + to add your first task.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
         </div>
       </div>

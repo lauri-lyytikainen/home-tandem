@@ -34,67 +34,73 @@ async function resolveAssignee(
   return membershipId;
 }
 
+async function listTasksByStatuses(
+  ctx: QueryCtx,
+  statuses: ("todo" | "in_progress" | "done")[],
+) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+
+  const householdId = await requireHousehold(ctx, identity.tokenIdentifier);
+
+  const groups = await Promise.all(
+    statuses.map((status) =>
+      ctx.db
+        .query("tasks")
+        .withIndex("by_household_and_status", (q) =>
+          q.eq("householdId", householdId).eq("status", status),
+        )
+        .take(200),
+    ),
+  );
+
+  const tasks = groups.flat().sort((a, b) => {
+    if (a.dueDate === undefined) return 1;
+    if (b.dueDate === undefined) return -1;
+    return a.dueDate - b.dueDate;
+  });
+
+  const membershipIds = [
+    ...new Set(
+      tasks
+        .map((t) => t.assigneeMembershipId)
+        .filter((id): id is Id<"householdMemberships"> => id !== undefined),
+    ),
+  ];
+  const memberships = await Promise.all(membershipIds.map((id) => ctx.db.get(id)));
+  const membershipToClerkId = new Map(
+    memberships
+      .filter((m): m is NonNullable<typeof m> => m !== null)
+      .map((m) => [m._id, toClerkUserId(m.tokenIdentifier)]),
+  );
+
+  return {
+    tasks: tasks.map((task) => ({
+      _id: task._id,
+      name: task.name,
+      category: task.category,
+      status: task.status,
+      note: task.note ?? null,
+      dueDate: task.dueDate ?? null,
+      assigneeMembershipId: task.assigneeMembershipId ?? null,
+      assigneeClerkUserId: task.assigneeMembershipId
+        ? (membershipToClerkId.get(task.assigneeMembershipId) ?? null)
+        : null,
+      recurrence: task.recurrence ?? null,
+      _creationTime: task._creationTime,
+    })),
+    myClerkUserId: toClerkUserId(identity.tokenIdentifier),
+  };
+}
+
 export const list = query({
   args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+  handler: (ctx) => listTasksByStatuses(ctx, ["todo", "in_progress"]),
+});
 
-    const householdId = await requireHousehold(ctx, identity.tokenIdentifier);
-
-    const [todo, inProgress] = await Promise.all([
-      ctx.db
-        .query("tasks")
-        .withIndex("by_household_and_status", (q) =>
-          q.eq("householdId", householdId).eq("status", "todo"),
-        )
-        .take(100),
-      ctx.db
-        .query("tasks")
-        .withIndex("by_household_and_status", (q) =>
-          q.eq("householdId", householdId).eq("status", "in_progress"),
-        )
-        .take(100),
-    ]);
-
-    const tasks = [...todo, ...inProgress].sort((a, b) => {
-      if (a.dueDate === undefined) return 1;
-      if (b.dueDate === undefined) return -1;
-      return a.dueDate - b.dueDate;
-    });
-
-    const membershipIds = [
-      ...new Set(
-        tasks
-          .map((t) => t.assigneeMembershipId)
-          .filter((id): id is Id<"householdMemberships"> => id !== undefined),
-      ),
-    ];
-    const memberships = await Promise.all(membershipIds.map((id) => ctx.db.get(id)));
-    const membershipToClerkId = new Map(
-      memberships
-        .filter((m): m is NonNullable<typeof m> => m !== null)
-        .map((m) => [m._id, toClerkUserId(m.tokenIdentifier)]),
-    );
-
-    return {
-      tasks: tasks.map((task) => ({
-        _id: task._id,
-        name: task.name,
-        category: task.category,
-        status: task.status,
-        note: task.note ?? null,
-        dueDate: task.dueDate ?? null,
-        assigneeMembershipId: task.assigneeMembershipId ?? null,
-        assigneeClerkUserId: task.assigneeMembershipId
-          ? (membershipToClerkId.get(task.assigneeMembershipId) ?? null)
-          : null,
-        recurrence: task.recurrence ?? null,
-        _creationTime: task._creationTime,
-      })),
-      myClerkUserId: toClerkUserId(identity.tokenIdentifier),
-    };
-  },
+export const listAll = query({
+  args: {},
+  handler: (ctx) => listTasksByStatuses(ctx, ["todo", "in_progress", "done"]),
 });
 
 export const create = mutation({

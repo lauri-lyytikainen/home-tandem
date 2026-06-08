@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import HomePage from "@/components/app/HomePage";
+import BoardPage from "@/components/app/BoardPage";
 import ShoppingPage from "@/components/app/ShoppingPage";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Home, LayoutDashboard, Scale, ShoppingCart } from "lucide-react";
@@ -13,7 +14,11 @@ export default function App() {
             <HomePage />
           </Suspense>
         </TabsContent>
-        <TabsContent value="board">Board</TabsContent>
+        <TabsContent value="board" className="flex flex-col min-h-0">
+          <Suspense fallback={null}>
+            <BoardPage />
+          </Suspense>
+        </TabsContent>
         <TabsContent value="shop" className="flex flex-col min-h-0">
           <Suspense fallback={null}>
             <ShoppingPage />
