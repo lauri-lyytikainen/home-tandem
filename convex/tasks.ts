@@ -183,6 +183,40 @@ export const reassign = mutation({
   },
 });
 
+export const update = mutation({
+  args: {
+    id: v.id("tasks"),
+    name: v.string(),
+    category: categoryValidator,
+    dueDate: v.optional(v.number()),
+    note: v.optional(v.string()),
+    assigneeMembershipId: v.optional(v.id("householdMemberships")),
+    recurrence: v.optional(recurrenceValidator),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const name = args.name.trim();
+    if (!name) throw new Error("Task name cannot be empty");
+
+    const householdId = await requireHousehold(ctx, identity.tokenIdentifier);
+    const task = await ctx.db.get(args.id);
+    if (!task || task.householdId !== householdId) throw new Error("Task not found");
+
+    const assigneeMembershipId = await resolveAssignee(ctx, householdId, args.assigneeMembershipId);
+
+    await ctx.db.patch(args.id, {
+      name,
+      category: args.category,
+      dueDate: args.dueDate,
+      note: args.note,
+      assigneeMembershipId,
+      recurrence: args.recurrence,
+    });
+  },
+});
+
 export const remove = mutation({
   args: { id: v.id("tasks") },
   handler: async (ctx, args) => {

@@ -31,6 +31,7 @@ import {
   TaskRecurrence,
 } from "./taskUtils";
 import { CalendarClock, ChevronDown, Repeat, Users } from "lucide-react";
+import type { Task } from "./TaskList";
 
 const FREQUENCY_OPTIONS: { value: TaskRecurrence["frequency"] | "none"; label: string }[] = [
   { value: "none", label: "Doesn't repeat" },
@@ -41,26 +42,55 @@ const FREQUENCY_OPTIONS: { value: TaskRecurrence["frequency"] | "none"; label: s
 
 type Assignee = { membershipId: Id<"householdMemberships">; clerkUserId: string } | "shared" | null;
 
+function taskToAssignee(task: Task): Assignee {
+  if (!task.assigneeMembershipId || !task.assigneeClerkUserId) return "shared";
+  return { membershipId: task.assigneeMembershipId, clerkUserId: task.assigneeClerkUserId };
+}
+
 export default function TaskFormDrawer({
   open,
   onOpenChange,
+  initialTask,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialTask?: Task;
 }) {
+  const isEditing = !!initialTask;
   const household = useQuery(api.households.getHousehold);
   const createMutation = useMutation(api.tasks.create);
+  const updateMutation = useMutation(api.tasks.update);
 
   const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<TaskCategory>("other");
-  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
+  const [name, setName] = useState(initialTask?.name ?? "");
+  const [category, setCategory] = useState<TaskCategory>(initialTask?.category ?? "other");
+  const [dueDate, setDueDate] = useState<Date | undefined>(
+    initialTask?.dueDate ? new Date(initialTask.dueDate) : undefined,
+  );
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [assignee, setAssignee] = useState<Assignee>("shared");
-  const [note, setNote] = useState("");
-  const [frequency, setFrequency] = useState<TaskRecurrence["frequency"] | "none">("none");
-  const [rotateAssignee, setRotateAssignee] = useState(false);
+  const [assignee, setAssignee] = useState<Assignee>(
+    initialTask ? taskToAssignee(initialTask) : "shared",
+  );
+  const [note, setNote] = useState(initialTask?.note ?? "");
+  const [frequency, setFrequency] = useState<TaskRecurrence["frequency"] | "none">(
+    initialTask?.recurrence?.frequency ?? "none",
+  );
+  const [rotateAssignee, setRotateAssignee] = useState(
+    initialTask?.recurrence?.rotateAssignee ?? false,
+  );
   const [submitting, setSubmitting] = useState(false);
+
+  // Re-seed state when the dialog opens for a (possibly different) task
+  useEffect(() => {
+    if (!open) return;
+    setName(initialTask?.name ?? "");
+    setCategory(initialTask?.category ?? "other");
+    setDueDate(initialTask?.dueDate ? new Date(initialTask.dueDate) : undefined);
+    setAssignee(initialTask ? taskToAssignee(initialTask) : "shared");
+    setNote(initialTask?.note ?? "");
+    setFrequency(initialTask?.recurrence?.frequency ?? "none");
+    setRotateAssignee(initialTask?.recurrence?.rotateAssignee ?? false);
+  }, [open, initialTask]);
 
   useEffect(() => {
     if (!household?.members) return;
@@ -87,19 +117,34 @@ export default function TaskFormDrawer({
     const trimmed = name.trim();
     if (!trimmed || submitting) return;
 
+    const assigneeMembershipId =
+      assignee && assignee !== "shared" ? assignee.membershipId : undefined;
+    const recurrence =
+      frequency === "none" ? undefined : { frequency, interval: 1, rotateAssignee };
+
     setSubmitting(true);
     try {
-      await createMutation({
-        name: trimmed,
-        category,
-        dueDate: dueDate?.getTime(),
-        note: note.trim() || undefined,
-        assigneeMembershipId:
-          assignee && assignee !== "shared" ? assignee.membershipId : undefined,
-        recurrence:
-          frequency === "none" ? undefined : { frequency, interval: 1, rotateAssignee },
-      });
-      reset();
+      if (isEditing) {
+        await updateMutation({
+          id: initialTask._id,
+          name: trimmed,
+          category,
+          dueDate: dueDate?.getTime(),
+          note: note.trim() || undefined,
+          assigneeMembershipId,
+          recurrence,
+        });
+      } else {
+        await createMutation({
+          name: trimmed,
+          category,
+          dueDate: dueDate?.getTime(),
+          note: note.trim() || undefined,
+          assigneeMembershipId,
+          recurrence,
+        });
+      }
+      if (!isEditing) reset();
       onOpenChange(false);
     } finally {
       setSubmitting(false);
@@ -114,15 +159,17 @@ export default function TaskFormDrawer({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) reset();
+        if (!next && !isEditing) reset();
         onOpenChange(next);
       }}
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New task</DialogTitle>
+          <DialogTitle>{isEditing ? "Edit task" : "New task"}</DialogTitle>
           <DialogDescription>
-            Add something for the household to take care of.
+            {isEditing
+              ? "Update the details for this task."
+              : "Add something for the household to take care of."}
           </DialogDescription>
         </DialogHeader>
 
@@ -312,7 +359,7 @@ export default function TaskFormDrawer({
           </div>
 
           <Button onClick={handleSubmit} disabled={!name.trim() || submitting} className="mt-1">
-            Add task
+            {isEditing ? "Save changes" : "Add task"}
           </Button>
         </div>
       </DialogContent>

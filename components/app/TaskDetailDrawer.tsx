@@ -33,8 +33,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { getMemberProfiles, MemberProfile } from "@/app/app/household/_actions";
 import { CATEGORY_META, formatDueLabel } from "./taskUtils";
-import { Check, CalendarClock, Trash2, Users } from "lucide-react";
+import { Check, CalendarClock, Pencil, Trash2, Users } from "lucide-react";
 import type { Task } from "./TaskList";
+import TaskFormDrawer from "./TaskFormDrawer";
 
 export default function TaskDetailDrawer({
   task,
@@ -53,6 +54,7 @@ export default function TaskDetailDrawer({
 
   const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
     if (!household?.members) return;
@@ -72,6 +74,7 @@ export default function TaskDetailDrawer({
   const due = formatDueLabel(task.dueDate);
 
   return (
+    <>
     <Dialog open={!!task} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
@@ -193,6 +196,9 @@ export default function TaskDetailDrawer({
               <CalendarClock /> Reschedule
             </Button>
           </div>
+          <Button variant="outline" onClick={() => setEditOpen(true)}>
+            <Pencil /> Edit task
+          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <button className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-destructive transition-colors py-2">
@@ -223,5 +229,12 @@ export default function TaskDetailDrawer({
         </div>
       </DialogContent>
     </Dialog>
+
+    <TaskFormDrawer
+      open={editOpen}
+      onOpenChange={setEditOpen}
+      initialTask={task}
+    />
+    </>
   );
 }
