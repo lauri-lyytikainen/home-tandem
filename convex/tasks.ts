@@ -41,7 +41,12 @@ async function listTasksByStatuses(
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
-  const householdId = await requireHousehold(ctx, identity.tokenIdentifier);
+  const membership = await ctx.db
+    .query("householdMemberships")
+    .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+    .first();
+  if (!membership) return null;
+  const householdId = membership.householdId;
 
   const groups = await Promise.all(
     statuses.map((status) =>
@@ -239,7 +244,12 @@ export const fairnessStats = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
 
-    const householdId = await requireHousehold(ctx, identity.tokenIdentifier);
+    const membership = await ctx.db
+      .query("householdMemberships")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .first();
+    if (!membership) return null;
+    const householdId = membership.householdId;
 
     const doneTasks = await ctx.db
       .query("tasks")
