@@ -146,7 +146,7 @@ export default function TaskList() {
   );
 
   return (
-    <div className="mt-6 flex flex-col gap-6">
+    <div className="mt-6 px-4 flex flex-col gap-6">
       <div>
         <div className="flex items-center justify-between px-1 mb-2">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
