@@ -307,7 +307,7 @@ export default function TaskFormDrawer({
               onChange={(e) => setNote(e.target.value)}
               placeholder="Add a note for whoever picks this up…"
               rows={3}
-              className="w-full rounded-2xl border border-transparent bg-input/50 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 resize-none"
+              className="w-full rounded-2xl border border-transparent bg-input/50 px-3 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 resize-none"
             />
           </div>
 
