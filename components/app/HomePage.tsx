@@ -39,8 +39,11 @@ export default function HomePage() {
             className="rounded-full ring-2 ring-border hover:ring-primary transition-all mt-2"
             aria-label="Open menu"
           >
-            <Avatar>
-              <AvatarImage src={user?.imageUrl} alt={user?.fullName ?? "Profile"} />
+            <Avatar size="lg">
+              <AvatarImage
+                src={user?.imageUrl}
+                alt={user?.fullName ?? "Profile"}
+              />
               <AvatarFallback>{user?.firstName?.[0] ?? "?"}</AvatarFallback>
             </Avatar>
           </button>
