@@ -139,9 +139,13 @@ export default function TaskList() {
 
   if (!data) return null;
 
-  const overdueCount = data.tasks.filter((t) => formatDueLabel(t.dueDate).overdue).length;
+  const visibleTasks = data.tasks.filter(
+    (t) => !t.assigneeMembershipId || t.assigneeClerkUserId === data.myClerkUserId,
+  );
+
+  const overdueCount = visibleTasks.filter((t) => formatDueLabel(t.dueDate).overdue).length;
   const selectedTask = data.tasks.find((t) => t._id === selectedTaskId) ?? null;
-  const { today, upcoming } = splitTasksByDue(data.tasks);
+  const { today, upcoming } = splitTasksByDue(visibleTasks);
 
   const renderRow = (task: Task) => (
     <TaskRow

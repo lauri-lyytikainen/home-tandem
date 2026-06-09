@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -83,20 +83,25 @@ function TwoColorBar({ shares }: { shares: { pct: number; colorClass: string }[]
 
 export default function FairnessPage() {
   const [period, setPeriod] = useState<Period>("week");
-  const stats = useQuery(api.tasks.fairnessStats, { period });
+  const freshStats = useQuery(api.tasks.fairnessStats, { period });
   const household = useQuery(api.households.getHousehold);
   const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
 
+  // Keep last known stats so the page doesn't flash when switching periods
+  const staleStats = useRef(freshStats);
+  if (freshStats !== undefined) staleStats.current = freshStats;
+  const stats = staleStats.current;
+
   useEffect(() => {
-    if (!stats) return;
-    const ids = stats.map((s) => s.clerkUserId);
+    if (!freshStats) return;
+    const ids = freshStats.map((s) => s.clerkUserId);
     if (ids.length === 0) return;
     getMemberProfiles(ids).then((result) => {
       if ("profiles" in result && result.profiles) {
         setProfiles(new Map(result.profiles.map((p) => [p.id, p])));
       }
     });
-  }, [stats]);
+  }, [freshStats]);
 
   if (!stats || !household) return null;
 
