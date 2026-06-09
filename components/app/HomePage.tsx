@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -8,8 +9,10 @@ import { Plus } from "lucide-react";
 import AppSidebar from "./AppSidebar";
 import TaskList from "./TaskList";
 import TaskFormDrawer from "./TaskFormDrawer";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function HomePage() {
+  const { user } = useUser();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -24,11 +27,23 @@ export default function HomePage() {
     <>
       <AppSidebar open={sidebarOpen} onClose={() => router.back()} />
       <div className="flex flex-col grow min-h-0 overflow-y-auto">
-        <div className="px-4 pt-6 pb-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">
-            {household?.name ?? "Your household"}
-          </p>
-          <h1 className="text-3xl font-extrabold tracking-tight">Tasks</h1>
+        <div className="flex items-start justify-between px-4 pt-6 pb-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">
+              {household?.name ?? "Your household"}
+            </p>
+            <h1 className="text-3xl font-extrabold tracking-tight">Tasks</h1>
+          </div>
+          <button
+            onClick={() => router.push(`${pathname}?menu=1`)}
+            className="rounded-full ring-2 ring-border hover:ring-primary transition-all mt-2"
+            aria-label="Open menu"
+          >
+            <Avatar>
+              <AvatarImage src={user?.imageUrl} alt={user?.fullName ?? "Profile"} />
+              <AvatarFallback>{user?.firstName?.[0] ?? "?"}</AvatarFallback>
+            </Avatar>
+          </button>
         </div>
 
         <TaskList />
