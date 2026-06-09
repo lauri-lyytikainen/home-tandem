@@ -132,7 +132,7 @@ export default function OnboardingPage() {
 
   if (effectiveStep === "name") {
     return (
-      <div className="grow flex flex-col max-w-sm mx-auto w-full pt-16 gap-8">
+      <div className="grow flex flex-col max-w-sm mx-auto w-full pt-16 px-4 gap-8">
         <div className="flex flex-col gap-1">
           <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
             Step 1 · Get started
@@ -169,7 +169,7 @@ export default function OnboardingPage() {
 
   if (effectiveStep === "choice") {
     return (
-      <div className="grow flex flex-col max-w-sm mx-auto w-full pt-16 gap-8">
+      <div className="grow flex flex-col max-w-sm mx-auto w-full pt-16 px-4 gap-8">
         <div className="flex flex-col gap-1">
           <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
             Step 2 · Household
@@ -220,7 +220,7 @@ export default function OnboardingPage() {
 
   if (effectiveStep === "join") {
     return (
-      <div className="grow flex flex-col max-w-sm mx-auto w-full pt-16 gap-8">
+      <div className="grow flex flex-col max-w-sm mx-auto w-full pt-16 px-4 gap-8">
         <div className="flex flex-col gap-1">
           <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
             Step 2 · Join

@@ -177,14 +177,18 @@ export default function TaskList() {
 
         <div className="flex flex-col gap-2">
           {today.map(renderRow)}
-          {data.tasks.length === 0 && (
+          {visibleTasks.length === 0 && (
             <Empty className="border-border mx-auto">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
                   <ListChecks />
                 </EmptyMedia>
-                <EmptyTitle>No tasks yet</EmptyTitle>
-                <EmptyDescription>Tap + to add your first task.</EmptyDescription>
+                <EmptyTitle>{data.tasks.length === 0 ? "No tasks yet" : "No tasks for you"}</EmptyTitle>
+                <EmptyDescription>
+                  {data.tasks.length === 0
+                    ? "Tap + to add your first task."
+                    : "No shared or assigned tasks right now."}
+                </EmptyDescription>
               </EmptyHeader>
             </Empty>
           )}
