@@ -9,9 +9,10 @@ import { Plus } from "lucide-react";
 import AppSidebar from "./AppSidebar";
 import TaskList from "./TaskList";
 import TaskFormDrawer from "./TaskFormDrawer";
+import LoadWidget from "./LoadWidget";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-export default function HomePage() {
+export default function HomePage({ onNavigateToFairness }: { onNavigateToFairness: () => void }) {
   const { user } = useUser();
   const router = useRouter();
   const pathname = usePathname();
@@ -49,6 +50,7 @@ export default function HomePage() {
           </button>
         </div>
 
+        <LoadWidget onNavigateToFairness={onNavigateToFairness} />
         <TaskList />
       </div>
 

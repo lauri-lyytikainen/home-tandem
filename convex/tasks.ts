@@ -231,6 +231,62 @@ export const update = mutation({
   },
 });
 
+export const fairnessStats = query({
+  args: {
+    period: v.union(v.literal("week"), v.literal("month"), v.literal("all")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const householdId = await requireHousehold(ctx, identity.tokenIdentifier);
+
+    const doneTasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_household_and_status", (q) =>
+        q.eq("householdId", householdId).eq("status", "done"),
+      )
+      .collect();
+
+    let since: number | null = null;
+    if (args.period === "week") {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      since = d.getTime();
+    } else if (args.period === "month") {
+      const d = new Date();
+      d.setDate(1);
+      d.setHours(0, 0, 0, 0);
+      since = d.getTime();
+    }
+
+    const filtered = since
+      ? doneTasks.filter((t) => t.completedAt !== undefined && t.completedAt >= since!)
+      : doneTasks;
+
+    const memberships = await ctx.db
+      .query("householdMemberships")
+      .withIndex("by_household", (q) => q.eq("householdId", householdId))
+      .collect();
+
+    return memberships.map((m) => {
+      const tasks = filtered.filter((t) => t.assigneeMembershipId === m._id);
+      const byCategory: Record<string, number> = {};
+      for (const t of tasks) {
+        byCategory[t.category] = (byCategory[t.category] ?? 0) + 1;
+      }
+      return {
+        membershipId: m._id,
+        clerkUserId: toClerkUserId(m.tokenIdentifier),
+        isMe: m.tokenIdentifier === identity.tokenIdentifier,
+        total: tasks.length,
+        byCategory,
+      };
+    });
+  },
+});
+
 export const remove = mutation({
   args: { id: v.id("tasks") },
   handler: async (ctx, args) => {
