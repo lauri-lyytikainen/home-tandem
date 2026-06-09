@@ -9,7 +9,12 @@ import { completeOnboarding } from "./_actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Link2, LogIn, PlusCircle, Users } from "lucide-react";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+import { Copy, Link2, LogIn, PlusCircle, Users } from "lucide-react";
 
 type Step = "name" | "choice" | "join" | "invite";
 
@@ -226,19 +231,23 @@ export default function OnboardingPage() {
         </div>
 
         <form onSubmit={handleJoinSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="code">Invite code</Label>
-            <Input
-              id="code"
-              name="code"
-              placeholder="abc123"
-              required
-              autoFocus
+          <div className="flex flex-col items-center gap-3">
+            <InputOTP
+              maxLength={6}
               value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
-            />
+              onChange={(v) => setJoinCode(v.toLowerCase())}
+              inputMode="text"
+              autoFocus
+            >
+              <InputOTPGroup>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <InputOTPSlot key={i} index={i} className="size-12 text-lg font-bold uppercase" />
+                ))}
+              </InputOTPGroup>
+            </InputOTP>
+            <p className="text-xs text-muted-foreground">Enter the 6-character code from your invite</p>
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-sm text-destructive text-center">{error}</p>}
           <div className="flex gap-2 mt-2">
             <Button
               type="button"
@@ -263,10 +272,6 @@ export default function OnboardingPage() {
   }
 
   // step === "invite"
-  const shortLink = inviteCode
-    ? `${window.location.host}/j/${inviteCode}`
-    : "…";
-
   return (
     <div className="grow flex flex-col max-w-sm mx-auto w-full pt-16 gap-8">
       <div className="flex flex-col gap-1">
@@ -289,35 +294,38 @@ export default function OnboardingPage() {
       </div>
 
       <div className="flex flex-col gap-3">
-        <button
-          type="button"
-          onClick={handleCopyLink}
-          disabled={!inviteCode}
-          className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm hover:bg-muted/50 transition-colors disabled:opacity-50"
-        >
-          <Link2 className="size-4 shrink-0 text-muted-foreground" />
-          <span className="font-medium">
-            {copied ? "Copied!" : "Copy invite link"}
-          </span>
-          <span className="ml-auto text-xs text-muted-foreground truncate max-w-40">
-            {shortLink}
-          </span>
-        </button>
-
-        <div className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm">
-          <span className="text-muted-foreground shrink-0">Or share the code</span>
-          <span className="ml-auto font-mono font-semibold tracking-widest text-base">
-            {inviteCode ?? "…"}
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={!inviteCode}
-            onClick={handleCopyCode}
-          >
-            {codeCopied ? "Copied!" : "Copy"}
-          </Button>
+        {/* Code display */}
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-background px-4 py-5">
+          <p className="text-xs text-muted-foreground">Share this code with your housemates</p>
+          <div className="pointer-events-none">
+          <InputOTP maxLength={6} value={(inviteCode ?? "").toUpperCase()} readOnly inputMode="none" tabIndex={-1}>
+            <InputOTPGroup>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <InputOTPSlot key={i} index={i} className="size-11 text-lg font-bold uppercase" />
+              ))}
+            </InputOTPGroup>
+          </InputOTP>
+          </div>
+          <div className="flex items-center gap-3 w-full">
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              disabled={!inviteCode}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-border py-2 text-sm font-medium hover:bg-muted/50 transition-colors disabled:opacity-50"
+            >
+              <Copy className="size-3.5" />
+              {codeCopied ? "Copied!" : "Copy code"}
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              disabled={!inviteCode}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-border py-2 text-sm font-medium hover:bg-muted/50 transition-colors disabled:opacity-50"
+            >
+              <Link2 className="size-3.5" />
+              {copied ? "Copied!" : "Copy link"}
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 mt-4">

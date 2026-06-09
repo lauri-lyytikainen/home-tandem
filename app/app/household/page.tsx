@@ -13,8 +13,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+import {
   ArrowLeft,
   Check,
+  Copy,
   Link2,
   LogOut,
   Moon,
@@ -337,52 +343,65 @@ export default function SettingsPage() {
             <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
               Invite
             </p>
-            {activeInvite && inviteRemaining !== null && inviteRemaining > 0 ? (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-                  <span>Expires in {formatCountdown(inviteRemaining)}</span>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 hover:text-foreground transition-colors"
-                    disabled={generatingInvite}
-                    onClick={handleGenerateInvite}
-                  >
-                    <RefreshCw className="size-3" />
-                    New invite
-                  </button>
+            {household.members.length >= 5 ? (
+              <p className="text-xs text-muted-foreground">Household is full (5/5 members).</p>
+            ) : activeInvite && inviteRemaining !== null && inviteRemaining > 0 ? (
+              <div className="flex flex-col gap-3">
+                {/* Code display */}
+                <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-background px-4 py-5">
+                  <p className="text-xs text-muted-foreground">Share this code to invite someone</p>
+                  <div className="pointer-events-none">
+                  <InputOTP maxLength={6} value={activeInvite.code.toUpperCase()} readOnly inputMode="none" tabIndex={-1}>
+                    <InputOTPGroup>
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <InputOTPSlot key={i} index={i} className="size-11 text-lg font-bold uppercase" />
+                      ))}
+                    </InputOTPGroup>
+                  </InputOTP>
+                  </div>
+                  <div className="flex items-center gap-3 w-full">
+                    <button
+                      type="button"
+                      onClick={handleCopyCode}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-border py-2 text-sm font-medium hover:bg-muted/50 transition-colors"
+                    >
+                      <Copy className="size-3.5" />
+                      {codeCopied ? "Copied!" : "Copy code"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyInvite}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-border py-2 text-sm font-medium hover:bg-muted/50 transition-colors"
+                    >
+                      <Link2 className="size-3.5" />
+                      {copied ? "Copied!" : "Copy link"}
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between w-full text-xs text-muted-foreground px-1">
+                    <span>Expires in {formatCountdown(inviteRemaining)}</span>
+                    <span>{5 - household.members.length} spot{5 - household.members.length === 1 ? "" : "s"} left</span>
+                  </div>
                 </div>
                 <button
                   type="button"
-                  onClick={handleCopyInvite}
-                  className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
+                  className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                  disabled={generatingInvite}
+                  onClick={handleGenerateInvite}
                 >
-                  <Link2 className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="font-medium">{copied ? "Copied!" : "Copy invite link"}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {5 - household.members.length} spot{5 - household.members.length === 1 ? "" : "s"} left
-                  </span>
+                  <RefreshCw className="size-3" />
+                  Generate new invite
                 </button>
-                <div className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm">
-                  <span className="text-muted-foreground shrink-0">Or share the code</span>
-                  <span className="ml-auto font-mono font-semibold tracking-widest text-base">{activeInvite.code}</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={handleCopyCode}>
-                    {codeCopied ? "Copied!" : "Copy"}
-                  </Button>
-                </div>
               </div>
             ) : (
               <Button
                 type="button"
                 variant="outline"
                 className="w-full"
-                disabled={generatingInvite || household.members.length >= 5}
+                disabled={generatingInvite}
                 onClick={handleGenerateInvite}
               >
                 {generatingInvite ? "Generating…" : "Generate invite link"}
               </Button>
-            )}
-            {household.members.length >= 5 && (
-              <p className="text-xs text-muted-foreground">Household is full (5/5 members).</p>
             )}
           </section>
         )}
