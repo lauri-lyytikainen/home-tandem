@@ -31,6 +31,7 @@ export default function BoardPage() {
   const data = useQuery(api.tasks.listAll);
   const household = useQuery(api.households.getHousehold);
   const completeMutation = useMutation(api.tasks.complete);
+  const uncompleteMutation = useMutation(api.tasks.uncomplete);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todo");
   const [memberFilter, setMemberFilter] = useState<MemberFilter>("everyone");
@@ -173,7 +174,11 @@ export default function BoardPage() {
               task={task as Task}
               profile={task.assigneeClerkUserId ? profiles.get(task.assigneeClerkUserId) : undefined}
               onOpen={setSelectedTaskId}
-              onToggle={(id) => completeMutation({ id })}
+              onToggle={(id) => {
+                const t = data.tasks.find((x) => x._id === id);
+                if (t?.status === "done") uncompleteMutation({ id });
+                else completeMutation({ id });
+              }}
             />
           ))
         )}

@@ -48,6 +48,7 @@ export default function TaskDetailDrawer({
 }) {
   const household = useQuery(api.households.getHousehold);
   const completeMutation = useMutation(api.tasks.complete);
+  const uncompleteMutation = useMutation(api.tasks.uncomplete);
   const rescheduleMutation = useMutation(api.tasks.reschedule);
   const reassignMutation = useMutation(api.tasks.reassign);
   const removeMutation = useMutation(api.tasks.remove);
@@ -187,10 +188,14 @@ export default function TaskDetailDrawer({
           <div className="flex gap-2">
             <Button
               className="flex-1"
-              disabled={task.status === "done"}
-              onClick={() => completeMutation({ id: task._id })}
+              variant={task.status === "done" ? "outline" : "default"}
+              onClick={() =>
+                task.status === "done"
+                  ? uncompleteMutation({ id: task._id })
+                  : completeMutation({ id: task._id })
+              }
             >
-              <Check /> Complete
+              <Check /> {task.status === "done" ? "Mark to-do" : "Complete"}
             </Button>
             <Button variant="outline" className="flex-1" onClick={() => setDatePickerOpen(true)}>
               <CalendarClock /> Reschedule

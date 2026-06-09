@@ -13,7 +13,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { ListChecks, Users } from "lucide-react";
+import { Check, ListChecks, Users } from "lucide-react";
 import { getMemberProfiles, MemberProfile } from "@/app/app/household/_actions";
 import {
   CATEGORY_META,
@@ -53,21 +53,28 @@ export function TaskRow({
   const Icon = meta.icon;
   const due = formatDueLabel(task.dueDate);
   const recurrenceLabel = formatRecurrenceLabel(task.recurrence);
+  const done = task.status === "done";
 
   return (
     <div
-      className="flex items-center gap-3 px-4 py-3 bg-background rounded-2xl border border-border cursor-pointer active:bg-muted/50 transition-colors"
+      className={`flex items-center gap-3 px-4 py-3 bg-background rounded-2xl border border-border cursor-pointer active:bg-muted/50 transition-colors ${done ? "opacity-60" : ""}`}
       onClick={() => onOpen(task._id)}
     >
       <button
         type="button"
-        aria-label="Mark as done"
+        aria-label={done ? "Mark as to-do" : "Mark as done"}
         onClick={(e) => {
           e.stopPropagation();
           onToggle(task._id);
         }}
-        className="w-5 h-5 rounded-md border-2 border-border bg-background shrink-0 hover:border-primary transition-colors"
-      />
+        className={`w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${
+          done
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-border bg-background hover:border-primary"
+        }`}
+      >
+        {done && <Check className="w-3 h-3" />}
+      </button>
 
       <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center shrink-0">
         <Icon className="w-4 h-4 text-muted-foreground" />
@@ -108,6 +115,7 @@ export function TaskRow({
 export default function TaskList() {
   const data = useQuery(api.tasks.list);
   const completeMutation = useMutation(api.tasks.complete);
+  const uncompleteMutation = useMutation(api.tasks.uncomplete);
 
   const [selectedTaskId, setSelectedTaskId] = useState<Id<"tasks"> | null>(null);
   const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
@@ -141,7 +149,11 @@ export default function TaskList() {
       task={task}
       profile={task.assigneeClerkUserId ? profiles.get(task.assigneeClerkUserId) : undefined}
       onOpen={setSelectedTaskId}
-      onToggle={(id) => completeMutation({ id })}
+      onToggle={(id) => {
+          const t = data.tasks.find((x) => x._id === id);
+          if (t?.status === "done") uncompleteMutation({ id });
+          else completeMutation({ id });
+        }}
     />
   );
 

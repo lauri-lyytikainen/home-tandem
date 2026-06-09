@@ -183,6 +183,20 @@ export const reassign = mutation({
   },
 });
 
+export const uncomplete = mutation({
+  args: { id: v.id("tasks") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const householdId = await requireHousehold(ctx, identity.tokenIdentifier);
+    const task = await ctx.db.get(args.id);
+    if (!task || task.householdId !== householdId) throw new Error("Task not found");
+
+    await ctx.db.patch(args.id, { status: "todo", completedAt: undefined });
+  },
+});
+
 export const update = mutation({
   args: {
     id: v.id("tasks"),
