@@ -271,7 +271,7 @@ export const fairnessStats = query({
       since = d.getTime();
     }
 
-    const filtered = since
+    const filtered = since !== null
       ? doneTasks.filter((t) => t.completedAt !== undefined && t.completedAt >= since!)
       : doneTasks;
 
@@ -280,17 +280,24 @@ export const fairnessStats = query({
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .collect();
 
+    const n = memberships.length;
+    const sharedTasks = filtered.filter((t) => !t.assigneeMembershipId);
+
     return memberships.map((m) => {
-      const tasks = filtered.filter((t) => t.assigneeMembershipId === m._id);
+      const assignedTasks = filtered.filter((t) => t.assigneeMembershipId === m._id);
       const byCategory: Record<string, number> = {};
-      for (const t of tasks) {
+      for (const t of assignedTasks) {
         byCategory[t.category] = (byCategory[t.category] ?? 0) + 1;
+      }
+      // Distribute shared tasks equally across all members
+      for (const t of sharedTasks) {
+        byCategory[t.category] = (byCategory[t.category] ?? 0) + 1 / n;
       }
       return {
         membershipId: m._id,
         clerkUserId: toClerkUserId(m.tokenIdentifier),
         isMe: m.tokenIdentifier === identity.tokenIdentifier,
-        total: tasks.length,
+        total: assignedTasks.length + sharedTasks.length / n,
         byCategory,
       };
     });

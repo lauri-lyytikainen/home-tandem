@@ -236,6 +236,7 @@ export default function TaskDetailDrawer({
     </Dialog>
 
     <TaskFormDrawer
+      key={task._id}
       open={editOpen}
       onOpenChange={setEditOpen}
       initialTask={task}

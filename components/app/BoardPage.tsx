@@ -175,7 +175,7 @@ export default function BoardPage() {
               profile={task.assigneeClerkUserId ? profiles.get(task.assigneeClerkUserId) : undefined}
               onOpen={setSelectedTaskId}
               onToggle={(id) => {
-                const t = data.tasks.find((x) => x._id === id);
+                const t = data?.tasks.find((x) => x._id === id);
                 if (t?.status === "done") uncompleteMutation({ id });
                 else completeMutation({ id });
               }}
