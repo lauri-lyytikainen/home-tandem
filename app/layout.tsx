@@ -3,6 +3,7 @@ import { Manrope } from "next/font/google";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/ui/themes";
+import { ThemeProvider } from "next-themes";
 import { cn } from "@/lib/utils";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 
@@ -255,16 +256,19 @@ export default function RootLayout({
     <html
       lang="en"
       className={cn("h-full", "antialiased", manrope.variable, "font-sans")}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <ClerkProvider
-          appearance={{ theme: shadcn, options: { elevation: "flush" } }}
-          signInUrl="/app/auth/sign-in"
-          signUpUrl="/app/auth/sign-up"
-          afterSignOutUrl="/app"
-        >
-          <ConvexClientProvider>{children}</ConvexClientProvider>
-        </ClerkProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ClerkProvider
+            appearance={{ theme: shadcn, options: { elevation: "flush" } }}
+            signInUrl="/app/auth/sign-in"
+            signUpUrl="/app/auth/sign-up"
+            afterSignOutUrl="/app"
+          >
+            <ConvexClientProvider>{children}</ConvexClientProvider>
+          </ClerkProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

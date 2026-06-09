@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
-import { ArrowLeft, Settings, Home, User, LogOut } from "lucide-react";
+import { ArrowLeft, Settings, User, LogOut } from "lucide-react";
 
 interface AppSidebarProps {
   open: boolean;
@@ -48,10 +48,6 @@ export default function AppSidebar({ open, onClose }: AppSidebarProps) {
             className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium hover:bg-muted transition-colors text-left"
             onClick={() => router.push("/app/household")}
           >
-            <Home className="size-5 text-muted-foreground" />
-            Household
-          </button>
-          <button className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium hover:bg-muted transition-colors text-left">
             <Settings className="size-5 text-muted-foreground" />
             Settings
           </button>
